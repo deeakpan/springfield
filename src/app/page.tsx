@@ -210,14 +210,14 @@ export default function Home() {
           <img
             src="/cool_bart-removebg-preview.png"
             alt="Cool Bart"
-            className="hidden md:block"
+            className="block"
             style={{
               position: 'absolute',
               top: 0,
               right: 0,
-              maxWidth: 220,
-              width: '18vw',
-              minWidth: 120,
+              maxWidth: 'clamp(80px, 15vw, 220px)',
+              width: 'clamp(80px, 15vw, 220px)',
+              minWidth: 60,
               zIndex: 20,
               pointerEvents: 'none',
               userSelect: 'none',

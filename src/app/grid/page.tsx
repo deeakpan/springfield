@@ -140,10 +140,10 @@ export default function GridPage() {
                       <button
                         onClick={openConnectModal}
                         type="button"
-                        className="px-4 py-2 rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2"
+                        className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2 max-w-[120px] sm:max-w-none truncate"
                       >
                         <Wallet className="w-4 h-4" />
-                        Connect Wallet
+                        <span className="truncate">Connect Wallet</span>
                       </button>
                     );
                   }
@@ -151,10 +151,10 @@ export default function GridPage() {
                     <button
                       onClick={openAccountModal}
                       type="button"
-                      className="px-4 py-2 rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2"
+                      className="px-3 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2 max-w-[120px] sm:max-w-none truncate"
                     >
                       <Wallet className="w-4 h-4" />
-                      {account.displayName}
+                      <span className="truncate">{account.displayName}</span>
                     </button>
                   );
                 }}
@@ -189,40 +189,40 @@ export default function GridPage() {
 
           {/* Dashboard */}
           <motion.div
-            className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-8 mb-8 shadow-xl"
+            className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl p-3 sm:p-4 md:p-8 mb-6 sm:mb-8 shadow-xl"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-xl p-4">
-                <div className="text-emerald-300 text-sm font-medium mb-1">Market Cap</div>
-                <div className="text-2xl font-semibold text-white">$30,034,120</div>
-                <div className="text-emerald-400/70 text-xs mt-1">$SPRFD</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+              <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-xl p-2 sm:p-4">
+                <div className="text-emerald-300 text-xs sm:text-sm font-medium mb-1">Market Cap</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">$30,034,120</div>
+                <div className="text-emerald-400/70 text-[10px] sm:text-xs mt-1">$SPRFD</div>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-4">
-                <div className="text-blue-300 text-sm font-medium mb-1">Sold Tiles</div>
-                <div className="text-2xl font-semibold text-white">
+              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-2 sm:p-4">
+                <div className="text-blue-300 text-xs sm:text-sm font-medium mb-1">Sold Tiles</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">
                   {tiles.filter(tile => tile.owner && !tile.isCenterArea).length}
                 </div>
-                <div className="text-blue-400/70 text-xs mt-1">Owned</div>
+                <div className="text-blue-400/70 text-[10px] sm:text-xs mt-1">Owned</div>
               </div>
 
-              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30 rounded-xl p-4">
-                <div className="text-amber-300 text-sm font-medium mb-1">Available</div>
-                <div className="text-2xl font-semibold text-white">
+              <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30 rounded-xl p-2 sm:p-4">
+                <div className="text-amber-300 text-xs sm:text-sm font-medium mb-1">Available</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">
                   {tiles.filter(tile => !tile.owner && !tile.isCenterArea).length}
                 </div>
-                <div className="text-amber-400/70 text-xs mt-1">of {tiles.filter(tile => !tile.isCenterArea).length} total</div>
+                <div className="text-amber-400/70 text-[10px] sm:text-xs mt-1">of {tiles.filter(tile => !tile.isCenterArea).length} total</div>
               </div>
 
-              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-4">
-                <div className="text-purple-300 text-sm font-medium mb-1">Attention Layer</div>
-                <div className="text-2xl font-semibold text-white">
+              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-2 sm:p-4">
+                <div className="text-purple-300 text-xs sm:text-sm font-medium mb-1">Attention Layer</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">
                   {tiles.find(tile => tile.isCenterArea)?.owner ? 'SOLD' : 'ACTIVE'}
                 </div>
-                <div className="text-purple-400/70 text-xs mt-1">
+                <div className="text-purple-400/70 text-[10px] sm:text-xs mt-1">
                   {tiles.find(tile => tile.isCenterArea)?.owner ? 'Ended' : 'Bidding Open'}
                 </div>
               </div>
@@ -231,29 +231,43 @@ export default function GridPage() {
 
           {/* Grid Container */}
           <motion.div
-            className="flex justify-center"
+            className="flex justify-center overflow-x-auto"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
-            <div className="p-8" style={{ width: '80vw', margin: '0 auto' }}>
-              <div style={{ 
-                display: 'grid',
-                gridTemplateColumns: 'repeat(40, 1fr)',
-                gridTemplateRows: 'repeat(20, 1fr)',
-                width: '100%',
-                height: '600px',
-                gap: '0px'
-              }}>
+            <div
+              className="p-2 sm:p-4 md:p-8"
+              style={{
+                width: 'max-content',
+                minWidth: '640px', // 16px * 40 columns
+                maxWidth: '100vw',
+                margin: '0 auto',
+              }}
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(40, minmax(12px, 1fr))',
+                  gridTemplateRows: 'repeat(20, minmax(12px, 1fr))',
+                  width: 'max-content',
+                  height: 'min(70vw, 70vh, 700px)',
+                  minWidth: '640px',
+                  minHeight: '320px',
+                  maxWidth: '100vw',
+                  maxHeight: '80vh',
+                  gap: '0px',
+                }}
+              >
                 {filteredTiles.map((tile) => (
                   <motion.div
                     key={tile.id}
                     className="cursor-pointer"
-                    style={{ 
+                    style={{
                       backgroundColor: tile.color,
                       gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
                       gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
-                      border: '0.5px solid #374151'
+                      border: '0.5px solid #374151',
                     }}
                     whileHover={{ scale: 1.02, zIndex: 10 }}
                     onClick={() => handleTileClick(tile)}
@@ -261,7 +275,7 @@ export default function GridPage() {
                     onMouseLeave={() => setHoveredTile(null)}
                   >
                     {tile.isCenterArea ? (
-                      <div className="w-full h-full flex items-center justify-center text-xs font-bold text-black">
+                      <div className="w-full h-full flex items-center justify-center text-[10px] sm:text-xs font-bold text-black text-center leading-tight px-1 sm:px-0 break-words">
                         ATTENTION LAYER
                       </div>
                     ) : tile.owner ? (
