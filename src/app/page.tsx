@@ -179,9 +179,9 @@ export default function Home() {
                       <button
                         onClick={openConnectModal}
                         type="button"
-                        className="px-4 py-2 rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2"
+                        className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
                       >
-                        <Wallet className="w-4 h-4" />
+                        <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
                         Connect Wallet
                       </button>
                     );
@@ -190,9 +190,9 @@ export default function Home() {
                     <button
                       onClick={openAccountModal}
                       type="button"
-                      className="px-4 py-2 rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-2"
+                      className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
                     >
-                      <Wallet className="w-4 h-4" />
+                      <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
                       {account.displayName}
                     </button>
                   );
