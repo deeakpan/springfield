@@ -38,7 +38,7 @@ const generateGrid = (): Tile[] => {
         x: x + 1, // Human readable coordinates
         y: y + 1,
         owner: null,
-        price: Math.floor(Math.random() * 100) + 10,
+        price: 5,
         color: '#E5E7EB',
         isForSale: true,
       });
