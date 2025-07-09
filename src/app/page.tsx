@@ -60,7 +60,7 @@ const SpecialFeatureCard = ({ delay }: any) => (
     <h3 className="text-2xl font-bold mb-3 text-black">Center Area Auction</h3>
     <p className="text-gray-800 leading-relaxed mb-4">
       The center area (tiles 17-23, rows 8-12) is Springfield's premium auction spot! This is a 7x5 block (7 columns by 5 rows) at the heart of the grid. Highest bidder gets 48 hours of maximum visibility. 
-      Perfect for project launches, announcements, or maximum exposure. Bidding handled automatically by smart contracts.
+      Perfect for project launches, announcements, or maximum exposure. Bidding handled automatically by smart contracts
     </p>
     <div className="grid grid-cols-2 gap-4 text-sm">
       <div className="bg-white/80 p-3 rounded border border-black">
