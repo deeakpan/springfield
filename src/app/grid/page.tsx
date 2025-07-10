@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import BuyModal from '../components/BuyModal';
+import QRCode from 'react-qr-code';
 
 // Simple tile interface
 interface Tile {
@@ -270,7 +271,7 @@ export default function GridPage() {
                     key={tile.id}
                     className="cursor-pointer"
                     style={{
-                      backgroundColor: tile.color,
+                      backgroundColor: tile.isCenterArea ? '#fde047' : tile.color,
                       gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
                       gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
                       border: '0.5px solid #374151',
@@ -281,8 +282,10 @@ export default function GridPage() {
                     onMouseLeave={() => setHoveredTile(null)}
                   >
                     {tile.isCenterArea ? (
-                      <div className="w-full h-full flex items-center justify-center text-[10px] sm:text-xs font-bold text-black text-center leading-tight px-1 sm:px-0 break-words">
-                        ATTENTION LAYER
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
+                          <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+                        </div>
                       </div>
                     ) : tile.owner ? (
                       <div className="w-full h-full flex items-center justify-center">
