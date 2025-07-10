@@ -4,8 +4,8 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import BuyModal from '../components/BuyModal';
 import QRCode from 'react-qr-code';
+import BuyModal from '../components/BuyModal';
 
 // Simple tile interface
 interface Tile {
@@ -277,7 +277,7 @@ export default function GridPage() {
                       border: '0.5px solid #374151',
                     }}
                     whileHover={{ scale: 1.02, zIndex: 10 }}
-                    onClick={() => handleTileClick(tile)}
+                    onClick={() => handleBuyTile(tile)}
                     onMouseEnter={() => setHoveredTile(tile)}
                     onMouseLeave={() => setHoveredTile(null)}
                   >
@@ -297,100 +297,6 @@ export default function GridPage() {
               </div>
             </div>
           </motion.div>
-
-          {/* Tile Info Panel */}
-          {selectedTile && (
-            <ConnectButton.Custom>
-              {({ account, chain, openConnectModal, authenticationStatus, mounted }) => {
-                const ready = mounted && authenticationStatus !== 'loading';
-                const connected =
-                  ready &&
-                  account &&
-                  chain &&
-                  (!authenticationStatus || authenticationStatus === 'authenticated');
-                // Remove price display
-                return (
-                  <motion.div
-                    className="fixed inset-0 flex items-center justify-center z-50"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setSelectedTile(null)}
-                  >
-                    <motion.div
-                      className="bg-gray-800 text-white p-6 rounded-lg max-w-md w-full mx-4 border-2 border-black"
-                      initial={{ scale: 0.9, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xl font-bold">
-                          {selectedTile.isCenterArea ? 'Attention Layer' : `Tile (${selectedTile.x}, ${selectedTile.y})`}
-                        </h3>
-                        <button
-                          onClick={() => setSelectedTile(null)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">Owner:</span>
-                          <span className="text-gray-300">
-                            {selectedTile.owner ? selectedTile.owner : 'Unclaimed'}
-                          </span>
-                        </div>
-                        {selectedTile.isCenterArea ? (
-                          <div className="space-y-3">
-                            <div className="text-center">
-                              <span className="text-yellow-400 font-bold text-lg">Auction Active</span>
-                            </div>
-                            {connected ? (
-                              <button
-                                onClick={() => handleBuyTile(selectedTile)}
-                                className="w-full bg-green-500 text-black font-bold py-2 px-4 rounded-md hover:bg-green-400 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <ShoppingCart className="w-4 h-4" />
-                                Place Bid
-                              </button>
-                            ) : (
-                              <button
-                                onClick={openConnectModal}
-                                className="w-full bg-green-500 text-black font-bold py-2 px-4 rounded-md hover:bg-green-400 transition-colors flex items-center justify-center gap-2"
-                              >
-                                <Wallet className="w-4 h-4" />
-                                Connect Wallet
-                              </button>
-                            )}
-                          </div>
-                        ) : selectedTile.isForSale && !selectedTile.owner && (
-                          connected ? (
-                            <button
-                              onClick={() => handleBuyTile(selectedTile)}
-                              className="w-full bg-green-500 text-black font-bold py-2 px-4 rounded-md hover:bg-green-400 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <ShoppingCart className="w-4 h-4" />
-                              Buy
-                            </button>
-                          ) : (
-                            <button
-                              onClick={openConnectModal}
-                              className="w-full bg-green-500 text-black font-bold py-2 px-4 rounded-md hover:bg-green-400 transition-colors flex items-center justify-center gap-2"
-                            >
-                              <Wallet className="w-4 h-4" />
-                              Connect Wallet
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                );
-              }}
-            </ConnectButton.Custom>
-          )}
 
           {/* Hover Info */}
           {hoveredTile && !selectedTile && (
@@ -420,12 +326,17 @@ export default function GridPage() {
       </div>
 
       {/* Modal for buying tile */}
+      {/* <BuyModal
+        open={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        tile={selectedTile || {}}
+        userType={modalUserType}
+        setUserType={setModalUserType}
+      /> */}
       <BuyModal
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        tile={selectedTile}
-        userType={modalUserType}
-        setUserType={setModalUserType}
+        tile={selectedTile || {}}
       />
     </div>
   );
