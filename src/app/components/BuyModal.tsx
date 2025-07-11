@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, ShoppingCart } from 'lucide-react';
+import { SPRFD } from '../../supportedTokens';
+import { ethers } from 'ethers';
+import Image from 'next/image';
 
 // Modal Props
 interface BuyModalProps {
@@ -24,6 +27,24 @@ const springfieldBlue = 'bg-blue-500';
 const springfieldBorder = 'border-4 border-black';
 const springfieldFont = 'font-bold';
 const springfieldButton = 'rounded-md px-6 py-2 text-lg font-bold border-2 border-black transition-all duration-200';
+
+const TOKENS = [
+  {
+    address: "0x615d19AD0103652d012d886fA12a521485a3fbBD",
+    name: "SPRFD",
+    logo: "/cool_bart-removebg-preview.png"
+  },
+  {
+    address: "0x5E9128De029d72C946d2E508C5d58F75C4486958",
+    name: "PEPU",
+    logo: "/peuchain-logo.jpg"
+  },
+  {
+    address: "0xD6d35F284b35131A2114AAad838D9b4cfF142aEa",
+    name: "PENK",
+    logo: "/6012603865783978322.jpg"
+  }
+];
 
 function validateSocialLinks(userType: UserType, form: typeof initialFormState, userSocialPlatform?: 'telegram' | 'discord' | 'x', userSocialValue?: string, projectPrimaryPlatform?: 'telegram' | 'discord' | 'x', projectPrimaryValue?: string, projectAdditionalLinks?: string[], imageFile?: File | null) {
   const errors: Record<string, string> = {};
@@ -116,6 +137,8 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   // Remove tokenName state and API usage
   const [tokenName, setTokenName] = useState<string>('');
+  const [sprfdBalance, setSprfdBalance] = useState<string>('');
+  const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
 
   // Reset modal state only when opened
   useEffect(() => {
@@ -136,6 +159,8 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       setImageFile(null);
       setImagePreview(null);
       setTokenName('');
+      setSprfdBalance('');
+      setSelectedToken(TOKENS[0]);
     }
   }, [open]);
 
@@ -149,7 +174,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  // Fetch price from new API route on price step
+  // Fetch price from API for selected token
   useEffect(() => {
     if (step === 'price' && open) {
       setLoadingPrice(true);
@@ -157,12 +182,39 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       fetch('/api/token-price')
         .then(res => res.json())
         .then(data => {
-          setPrice(data.price || 'N/A');
+          const val = data[selectedToken.address];
+          setPrice(val && !isNaN(val) ? val : '');
         })
-        .catch(() => setPrice('N/A'))
+        .catch(() => setPrice(''))
         .finally(() => setLoadingPrice(false));
     }
-  }, [step, open]);
+  }, [step, open, selectedToken]);
+
+  // Fetch selected token wallet balance in price step
+  useEffect(() => {
+    async function fetchBalance() {
+      if (step === 'price' && open && window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const userAddress = await signer.getAddress();
+          const erc20 = new ethers.Contract(
+            selectedToken.address,
+            ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"],
+            provider
+          );
+          const [bal, dec] = await Promise.all([
+            erc20.balanceOf(userAddress),
+            erc20.decimals()
+          ]);
+          setSprfdBalance(ethers.formatUnits(bal, dec));
+        } catch (e) {
+          setSprfdBalance('');
+        }
+      }
+    }
+    fetchBalance();
+  }, [step, open, selectedToken]);
 
   // Prevent modal from closing on background click or event bubbling
   useEffect(() => {
@@ -371,89 +423,81 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       </form>
     );
   } else if (step === 'price') {
-    content = showSuccess ? (
-      <div className="flex flex-col items-start gap-4 w-full">
-        <h2 className={`text-2xl ${springfieldFont} text-green-400 mb-2 text-left w-full`}>Success!</h2>
-        <div className="bg-white rounded-md p-4 border-2 border-black w-full max-w-xs text-black text-left">
-          <div className="mb-2 font-bold">Your tile has been claimed.</div>
-        </div>
-        <button
-          className={`rounded-md px-3 py-1.5 text-base font-bold border-2 border-black bg-yellow-300 text-black hover:bg-yellow-200 w-full sm:w-auto`}
-          onClick={onClose}
-        >
-          Close
-        </button>
-      </div>
-    ) : (
-      <div className="flex flex-col items-start gap-4 w-full">
-        <h2 className={`text-2xl ${springfieldFont} text-yellow-300 mb-2 text-left w-full`}>Confirm & Pay</h2>
-        <div className="bg-white rounded-md p-4 border-2 border-black w-full max-w-xs text-black text-left">
-          <div className="mb-2">Tile: <span className="font-bold">{tile?.id || 'N/A'}</span></div>
-          <div className="mb-2">Name: <span className="font-bold">{form.name}</span></div>
-          <div className="mb-2">Type: <span className="font-bold capitalize">{userType}</span></div>
-          {/* Only show filled social info */}
-          {userType === 'user' ? (
-            userSocialValue ? (
-              <div className="mb-2">
-                {userSocialPlatform === 'telegram' && <span>Telegram: <span className="font-bold">https://t.me/{userSocialValue}</span></span>}
-                {userSocialPlatform === 'discord' && <span>Discord: <span className="font-bold">https://discord.com/users/{userSocialValue}</span></span>}
-                {userSocialPlatform === 'x' && <span>X: <span className="font-bold">https://x.com/{userSocialValue}</span></span>}
-              </div>
-            ) : null
-          ) : (
-            <>
-              {projectPrimaryValue && (
-                <div className="mb-2">
-                  {projectPrimaryPlatform === 'telegram' && <span>Telegram: <span className="font-bold">https://t.me/{projectPrimaryValue}</span></span>}
-                  {projectPrimaryPlatform === 'discord' && <span>Discord: <span className="font-bold">https://discord.com/users/{projectPrimaryValue}</span></span>}
-                  {projectPrimaryPlatform === 'x' && <span>X: <span className="font-bold">https://x.com/{projectPrimaryValue}</span></span>}
-                </div>
-              )}
-              {projectAdditionalLinks && projectAdditionalLinks.length > 0 && projectAdditionalLinks[0] && (
-                <div className="mb-2">Additional 1: <span className="font-bold">{projectAdditionalLinks[0]}</span></div>
-              )}
-              {projectAdditionalLinks && projectAdditionalLinks.length > 1 && projectAdditionalLinks[1] && (
-                <div className="mb-2">Additional 2: <span className="font-bold">{projectAdditionalLinks[1]}</span></div>
-              )}
-            </>
-          )}
-          {form.website && <div className="mb-2">Website: <span className="font-bold">{form.website}</span></div>}
-        </div>
-        <div className="flex flex-col items-start gap-2 mt-2 w-full">
-          {/* USD price for tile at the top */}
-          <div className="text-base font-bold text-white mb-1">Price for tile in USD: <span className="text-yellow-300">$7</span></div>
-          {/* $PENK logo, name, and price in a row, smaller text */}
-          <div className="flex items-center gap-2 ml-1">
-            <img src="/6012603865783978322.jpg" alt="$PENK" className="w-6 h-6 rounded-full border-2 border-black bg-white object-cover" />
-            <span className="text-sm font-bold text-yellow-200">$PENK</span>
-            {loadingPrice ? (
-              <Loader2 className="animate-spin w-5 h-5 text-yellow-300 ml-2" />
-            ) : (
-              <span className="text-lg font-bold text-yellow-300 ml-2">{price !== '' ? price : 'N/A'}</span>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-col sm:flex-row justify-between w-full max-w-xs mt-4 gap-2 sm:gap-4">
-          <button
-            className={`rounded-md px-3 py-1.5 text-base font-bold border-2 border-black bg-gray-200 text-black hover:bg-gray-300 w-full sm:w-auto`}
-            onClick={() => setStep('form')}
-          >
-            <ArrowLeft className="inline w-4 h-4 mr-1" /> Back
-          </button>
-          <button
-            className={`rounded-md px-3 py-1.5 text-base font-bold border-2 border-black bg-green-500 text-black hover:bg-green-400 w-full sm:w-auto flex items-center justify-center`}
-            disabled={loadingPrice || submitting}
-            onClick={() => {
-              setSubmitting(true);
-              setTimeout(() => {
-                setSubmitting(false);
-                setShowSuccess(true);
-              }, 1200);
+    content = (
+      <div className="flex flex-col items-center gap-4 w-full p-4">
+        <h2 className={`text-2xl ${springfieldFont} text-yellow-300 mb-2 w-full text-center`}>Confirm Purchase</h2>
+        {/* Token selector as a dropdown */}
+        <div className="w-full max-w-xs mb-2">
+          <select
+            className="w-32 px-2 py-1 rounded-md border-2 border-black bg-green-500 text-black font-bold text-sm outline-none"
+            value={selectedToken.address}
+            onChange={e => {
+              const token = TOKENS.find(t => t.address === e.target.value);
+              if (token) setSelectedToken(token);
             }}
           >
-            {submitting ? <Loader2 className="animate-spin w-5 h-5 mr-2" /> : <Wallet className="inline w-5 h-5 mr-2" />} Pay & Claim
-          </button>
+            {TOKENS.map(token => (
+              <option key={token.address} value={token.address} className="text-black">
+                {token.name}
+              </option>
+            ))}
+          </select>
         </div>
+        {/* You Send section (compact, wrapped, fixed) */}
+        <div className="w-full max-w-xs flex flex-col items-stretch mb-2">
+          <label className="block text-sm font-semibold text-black mb-1 ml-1">You Send</label>
+          <div className="flex items-center border-2 border-black rounded-lg px-3 py-2 bg-white min-w-0">
+            <div className="flex flex-nowrap items-center mr-2">
+              <div className="rounded-full bg-white border-2 border-black w-7 h-7 flex items-center justify-center overflow-hidden">
+                <Image src={selectedToken.logo} alt={selectedToken.name + ' Logo'} width={28} height={28} className="object-cover w-full h-full" />
+              </div>
+              <span className="ml-2 text-xs font-bold text-yellow-500 whitespace-nowrap">{selectedToken.name}</span>
+            </div>
+            <input
+              type="text"
+              className="bg-transparent text-base font-extrabold font-mono text-black flex-1 outline-none border-none text-right max-w-full min-w-0 truncate"
+              value={loadingPrice ? '' : (price !== '' ? price : '0')}
+              readOnly
+              style={{ fontSize: 'clamp(1rem, 3vw, 1.25rem)' }}
+            />
+          </div>
+          <div className="text-xs text-black mt-1 text-right pr-1">
+            {sprfdBalance} available
+          </div>
+        </div>
+        {/* Details Section (compact, black border) */}
+        <div className="bg-white rounded-md p-4 border-2 border-black w-full max-w-xs text-black text-left mb-2 shadow-sm flex flex-col gap-1">
+          <div className="mb-1"><span className="font-bold text-yellow-500">Tile:</span> <span className="font-bold text-black">{tile?.id || 'N/A'}</span></div>
+          <div className="mb-1"><span className="font-bold text-yellow-500">Name:</span> <span className="font-bold text-black">{form.name}</span></div>
+          {userType === 'user' && (
+            <div className="mb-1"><span className="font-bold text-yellow-500">Social:</span> <span className="font-bold text-black">{userSocialPlatform}: {userSocialValue}</span></div>
+          )}
+          {userType === 'project' && (
+            <>
+              <div className="mb-1"><span className="font-bold text-yellow-500">Primary:</span> <span className="font-bold text-black">{projectPrimaryPlatform}: {projectPrimaryValue}</span></div>
+              <div className="mb-1"><span className="font-bold text-yellow-500">Additional:</span> <span className="font-bold text-black">{projectAdditionalLinks.filter(Boolean).join(', ')}</span></div>
+            </>
+          )}
+          {form.website && <div className="mb-1"><span className="font-bold text-yellow-500">Website:</span> <span className="font-bold text-black">{form.website}</span></div>}
+        </div>
+        {/* Image preview below details */}
+        {imagePreview && (
+          <div className="flex justify-center mb-2">
+            <img
+              src={imagePreview}
+              alt="Selected"
+              className="rounded-md border-2 border-yellow-500 max-h-32 max-w-full object-contain"
+            />
+          </div>
+        )}
+        {/* Action Button (smaller, green, with cart icon) */}
+        <button
+          className="w-full py-2 mt-2 rounded-lg bg-green-500 text-black font-bold text-lg border-2 border-green-700 hover:bg-green-400 transition shadow flex items-center justify-center gap-2"
+          disabled={loadingPrice}
+        >
+          <ShoppingCart className="w-5 h-5 mr-1" />
+          {loadingPrice ? 'Loading...' : 'Buy Tile'}
+        </button>
       </div>
     );
   }
