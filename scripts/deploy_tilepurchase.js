@@ -6,14 +6,12 @@ async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying TilePurchase with account:", deployer.address);
 
-  // Import token addresses from supportedTokens.ts
-  const { SPRFD_ADDRESS, PEPU_ADDRESS, PENK_ADDRESS } = require('../src/supportedTokens');
-  const SPRFD = SPRFD_ADDRESS;
-  const PEPU = PEPU_ADDRESS;
-  const PENK = PENK_ADDRESS;
+  // Only PENK (ERC20) is required for deployment
+  // PENK address from src/supportedTokens.ts
+  const PENK = "0x82144c93bd531e46f31033fe22d1055af17a514c";
 
   const TilePurchase = await hre.ethers.getContractFactory("TilePurchase");
-  const tilePurchase = await TilePurchase.deploy([SPRFD, PEPU, PENK]);
+  const tilePurchase = await TilePurchase.deploy(PENK);
   await tilePurchase.waitForDeployment();
   const tilePurchaseAddress = await tilePurchase.getAddress();
 

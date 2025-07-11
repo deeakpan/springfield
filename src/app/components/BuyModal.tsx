@@ -130,8 +130,8 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [showFinalSuccess, setShowFinalSuccess] = useState(false);
 
   const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
-  const DEPLOYER_ADDRESS = "0x62942BbBb86482bFA0C064d0262E23Ca04ea99C5";
-  const TILE_PURCHASE_ADDRESS = "0x54AB2a6AB9A7d70CeA0DEeBa5C0A0691120330Dc";
+  const DEPLOYER_ADDRESS = "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E";
+  const TILE_PURCHASE_ADDRESS = "0x346a672059a1a81105660B6B3a2Fc98b607B4ce7";
 
   // Reset modal state only when opened
   useEffect(() => {
@@ -177,11 +177,12 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     if (step === 'price' && open) {
       setLoadingPrice(true);
       setPrice('');
+      const priceKey = selectedToken.address ? selectedToken.address : 'PEPU';
       fetch('/api/token-price')
         .then(res => res.json())
         .then(data => {
-          const val = data[selectedToken.address];
-          setPrice(val && !isNaN(val) ? val : '');
+          const priceValue = data[priceKey];
+          setPrice(priceValue && !isNaN(priceValue) ? priceValue : '');
         })
         .catch(() => setPrice(''))
         .finally(() => setLoadingPrice(false));
@@ -196,16 +197,48 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
           const userAddress = await signer.getAddress();
-          const erc20 = new ethers.Contract(
-            selectedToken.address,
-            ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"],
-            provider
-          );
-          const [bal, dec] = await Promise.all([
-            erc20.balanceOf(userAddress),
-            erc20.decimals()
-          ]);
-          setSprfdBalance(ethers.formatUnits(bal, dec));
+          if (selectedToken.isNative) {
+            const balance = await provider.getBalance(userAddress);
+            setSprfdBalance(ethers.formatUnits(balance, 18)); // Assuming 18 decimals for native
+          } else {
+            if (!selectedToken.address) throw new Error('No address for ERC20 token');
+            try {
+              // For PENK: balanceOf() on proxy, decimals() on implementation
+              const proxyContract = new ethers.Contract(
+                selectedToken.address, // PENK proxy address
+                ["function balanceOf(address owner) view returns (uint256)"],
+                provider
+              );
+              const implementationContract = new ethers.Contract(
+                "0xE8a859a25249c8A5b9F44059937145FC67d65eD4", // PENK implementation
+                ["function decimals() view returns (uint8)"],
+                provider
+              );
+              const [bal, dec] = await Promise.all([
+                proxyContract.balanceOf(userAddress),
+                implementationContract.decimals()
+              ]);
+              setSprfdBalance(ethers.formatUnits(bal, dec));
+            } catch (err) {
+              console.error("Failed to fetch PENK balance:", err, {
+                address: selectedToken.address,
+                userAddress
+              });
+              // Fallback: hardcode to 18 decimals
+              try {
+                const proxyContract = new ethers.Contract(
+                  selectedToken.address,
+                  ["function balanceOf(address owner) view returns (uint256)"],
+                  provider
+                );
+                const bal = await proxyContract.balanceOf(userAddress);
+                setSprfdBalance(ethers.formatUnits(bal, 18));
+              } catch (fallbackErr) {
+                console.error("All PENK balance methods failed:", fallbackErr);
+                setSprfdBalance('');
+              }
+            }
+          }
         } catch (e) {
           setSprfdBalance('');
         }
@@ -277,27 +310,63 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
-      const erc20 = new ethers.Contract(
-        selectedToken.address,
-        [
-          "function transfer(address to, uint256 amount) returns (bool)",
-          "function decimals() view returns (uint8)",
-          "function balanceOf(address owner) view returns (uint256)"
-        ],
-        signer
-      );
-      const decimals = await erc20.decimals();
-      const amount = ethers.parseUnits(String(price), decimals);
-      const balance = await erc20.balanceOf(userAddress);
-      console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
-      if (balance < amount) {
-        setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
-        setUploading(false);
-        return;
+      let erc20;
+      let decimals;
+      let amount;
+      let balance;
+
+      if (selectedToken.isNative) {
+        // Native token transfer via contract
+        const nativeAmount = ethers.parseUnits(String(price), 18); // Assuming 18 decimals for native
+        balance = await provider.getBalance(userAddress);
+        if (balance < nativeAmount) {
+          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
+          setUploading(false);
+          return;
+        }
+        // Call contract's buyTileNative function
+        const tilePurchase = new ethers.Contract(
+          TILE_PURCHASE_ADDRESS,
+          ["function buyTileNative(uint256 tileId) external payable"],
+          signer
+        );
+        const tx = await tilePurchase.buyTileNative(tile?.id || 0, { value: nativeAmount });
+        await tx.wait();
+      } else {
+        // ERC20 token transfer via contract
+        if (!selectedToken.address) throw new Error('No address for ERC20 token');
+        erc20 = new ethers.Contract(
+          selectedToken.address,
+          [
+            "function transfer(address to, uint256 amount) returns (bool)",
+            "function decimals() view returns (uint8)",
+            "function balanceOf(address owner) view returns (uint256)",
+            "function approve(address spender, uint256 amount) returns (bool)"
+          ],
+          signer
+        );
+        decimals = await erc20.decimals();
+        amount = ethers.parseUnits(String(price), decimals);
+        balance = await erc20.balanceOf(userAddress);
+        console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
+        if (balance < amount) {
+          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
+          setUploading(false);
+          return;
+        }
+        // First approve the contract to spend tokens
+        const approveTx = await erc20.approve(TILE_PURCHASE_ADDRESS, amount);
+        await approveTx.wait();
+        // Then call contract's buyTile function
+        const tilePurchase = new ethers.Contract(
+          TILE_PURCHASE_ADDRESS,
+          ["function buyTile(address token, uint256 amount, uint256 tileId) external"],
+          signer
+        );
+        const tx = await tilePurchase.buyTile(selectedToken.address, amount, tile?.id || 0);
+        await tx.wait();
       }
-      // This will always prompt the wallet to sign/confirm
-      const tx = await erc20.transfer(DEPLOYER_ADDRESS, amount);
-      await tx.wait();
+
       // 2. Upload image
       const imageRes = await lighthouse.upload([imageFile], apiKey);
       const imageCID = imageRes.data.Hash;
@@ -550,14 +619,21 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         <div className="w-full max-w-xs mb-2">
           <select
             className="w-32 px-2 py-1 rounded-md border-2 border-black bg-green-500 text-black font-bold text-sm outline-none"
-            value={selectedToken.address}
+            value={selectedToken.isNative ? "PEPU_NATIVE" : selectedToken.address}
             onChange={e => {
-              const token = TOKENS.find(t => t.address === e.target.value);
+              const value = e.target.value;
+              const token = value === "PEPU_NATIVE"
+                ? TOKENS.find(t => t.isNative)
+                : TOKENS.find(t => t.address === value);
               if (token) setSelectedToken(token);
             }}
           >
             {TOKENS.map(token => (
-              <option key={token.address} value={token.address} className="text-black">
+              <option
+                key={token.address ?? "PEPU_NATIVE"}
+                value={token.isNative ? "PEPU_NATIVE" : token.address}
+                className="text-black"
+              >
                 {token.name}
               </option>
             ))}
@@ -591,7 +667,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           <div className="mb-1"><span className="font-bold text-yellow-500">Name:</span> <span className="font-bold text-black">{form.name}</span></div>
           {userType === 'user' && (
             <div className="mb-1"><span className="font-bold text-yellow-500">Social:</span> <span className="font-bold text-black">{userSocialPlatform}: {userSocialValue}</span></div>
-          )}
+              )}
           {userType === 'project' && (
             <>
               <div className="mb-1"><span className="font-bold text-yellow-500">Primary:</span> <span className="font-bold text-black">{projectPrimaryPlatform}: {projectPrimaryValue}</span></div>
@@ -618,7 +694,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           className="w-full py-2 mt-2 rounded-lg bg-green-500 text-black font-bold text-lg border-2 border-green-700 hover:bg-green-400 transition shadow flex items-center justify-center gap-2"
           disabled={loadingPrice || uploading}
           onClick={handleBuy}
-        >
+          >
           {uploading ? <Loader2 className="animate-spin w-5 h-5 mr-1" /> : <ShoppingCart className="w-5 h-5 mr-1" />}
           {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : 'Buy Tile')}
           </button>

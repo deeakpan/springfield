@@ -5,31 +5,33 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract TilePurchase is Ownable {
-    // Mapping of supported token addresses
-    mapping(address => bool) public supportedTokens;
+    // Only PENK is supported as ERC20
+    address public penkToken;
+    // Mapping to track purchased tiles (optional, for demo)
+    mapping(uint256 => address) public tileOwners;
+    address public constant PAYOUT_ADDRESS = 0x95C46439bD9559e10c4fF49bfF3e20720d93B66E;
 
-    event TilePurchased(address indexed buyer, address indexed token, uint256 amount);
+    event TilePurchased(address indexed buyer, address indexed token, uint256 amount, uint256 tileId);
+    event TilePurchasedNative(address indexed buyer, uint256 amount, uint256 tileId);
 
-    constructor(address[] memory _supportedTokens) Ownable(msg.sender) {
-        for (uint i = 0; i < _supportedTokens.length; i++) {
-            supportedTokens[_supportedTokens[i]] = true;
-        }
+    constructor(address _penkToken) Ownable(msg.sender) {
+        penkToken = _penkToken;
     }
 
-    // Owner can add more supported tokens
-    function addSupportedToken(address token) external onlyOwner {
-        supportedTokens[token] = true;
+    // Buy with PENK (ERC20)
+    function buyTile(address token, uint256 amount, uint256 tileId) external {
+        require(token == penkToken, "Only PENK supported");
+        require(IERC20(token).transferFrom(msg.sender, PAYOUT_ADDRESS, amount), "Transfer failed");
+        tileOwners[tileId] = msg.sender;
+        emit TilePurchased(msg.sender, token, amount, tileId);
     }
 
-    // Owner can remove supported tokens
-    function removeSupportedToken(address token) external onlyOwner {
-        supportedTokens[token] = false;
-    }
-
-    // User buys a tile by paying the required amount of a supported token
-    function buyTile(address token, uint256 amount) external {
-        require(supportedTokens[token], "Token not supported");
-        require(IERC20(token).transferFrom(msg.sender, address(this), amount), "Transfer failed");
-        emit TilePurchased(msg.sender, token, amount);
+    // Buy with native PEPU
+    function buyTileNative(uint256 tileId) external payable {
+        require(msg.value > 0, "No native sent");
+        (bool sent, ) = PAYOUT_ADDRESS.call{value: msg.value}("");
+        require(sent, "Native transfer failed");
+        tileOwners[tileId] = msg.sender;
+        emit TilePurchasedNative(msg.sender, msg.value, tileId);
     }
 } 

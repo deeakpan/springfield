@@ -1,7 +1,7 @@
 
 ## Smart Contracts
 
-- **Springfield TilePurchase Contract (Base Sepolia):**
-  - Address: `0x54AB2a6AB9A7d70CeA0DEeBa5C0A0691120330Dc`
+- **Springfield TilePurchase Contract (Pepe Unchained V2):**
+  - Address: `0x346a672059a1a81105660B6B3a2Fc98b607B4ce7`
   - Purpose: Handles all tile purchase transactions for the Springfield dApp.
 
