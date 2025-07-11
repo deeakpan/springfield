@@ -9,6 +9,13 @@ export async function GET(req: NextRequest) {
     const data = await res.json();
     const price = data?.data?.attributes?.base_token_price_usd || null;
     const tokenName = data?.data?.attributes?.base_token?.name || null;
+
+    // Calculate how many tokens for 7 USD
+    if (price) {
+      const tokensFor7USD = 7 / parseFloat(price);
+      console.log(`Tokens needed for 7 USD: ${tokensFor7USD}`);
+    }
+
     return NextResponse.json({ price, tokenName });
   } catch (e) {
     return NextResponse.json({ error: 'Error fetching price' }, { status: 500 });
