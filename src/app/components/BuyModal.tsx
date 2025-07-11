@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, ShoppingCart } from 'lucide-react';
+import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { TOKENS } from '../../supportedTokens';
 import { ethers } from 'ethers';
 import Image from 'next/image';
@@ -14,7 +14,7 @@ interface BuyModalProps {
 
 type UserType = 'project' | 'user' | null;
 
-type Step = 'choose' | 'form' | 'price';
+type Step = 'choose' | 'form' | 'price' | 'success';
 
 const initialFormState = {
   name: '',
@@ -102,6 +102,7 @@ function validateSocialLinks(userType: UserType, form: typeof initialFormState, 
 }
 
 export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
+  let content;
   const [step, setStep] = useState<Step>('choose');
   const [userType, setUserType] = useState<UserType>(null);
   const [form, setForm] = useState(initialFormState);
@@ -126,6 +127,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showFinalSuccess, setShowFinalSuccess] = useState(false);
 
   const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
 
@@ -154,6 +156,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       setUploading(false);
       setErrorMsg(null);
       setSuccessMsg(null);
+      setShowFinalSuccess(false);
     }
   }, [open]);
 
@@ -212,16 +215,29 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   // Prevent modal from closing on background click or event bubbling
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        // Do nothing (modal should not close on Escape)
+      if (step === 'success' && e.key === 'Escape') {
+        // Prevent closing modal on Escape during success step
         e.stopPropagation();
+        e.preventDefault();
       }
     }
     if (open) {
       window.addEventListener('keydown', handleKeyDown, true);
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }
-  }, [open]);
+  }, [open, step]);
+
+  // Prevent modal from closing on backdrop click during success step
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (step === 'success') {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
 
   // Fetch and set connected wallet address when modal opens
   useEffect(() => {
@@ -280,30 +296,11 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       console.log("Details CID:", textCID);
       // 5. Success: clear form, close modal, show message
       setSuccessMsg("Upload successful!");
+      setStep('success');
       setTimeout(() => {
         setSuccessMsg(null);
         onClose();
-      }, 1500);
-      // Clear all form state
-      setStep('choose');
-      setUserType(null);
-      setForm(initialFormState);
-      setErrors({});
-      setPrice('');
-      setLoadingPrice(false);
-      setSubmitting(false);
-      setShowSuccess(false);
-      setUserSocialPlatform('telegram');
-      setUserSocialValue('');
-      setProjectPrimaryPlatform('telegram');
-      setProjectPrimaryValue('');
-      setProjectAdditionalLinks(['', '']);
-      setImageFile(null);
-      setImagePreview(null);
-      setTokenName('');
-      setSprfdBalance('');
-      setSelectedToken(TOKENS[0]);
-      setConnectedAddress(null);
+      }, 10000);
     } catch (e: any) {
       setErrorMsg(e.message || "Upload failed");
     } finally {
@@ -311,10 +308,23 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     }
   };
 
-  if (!open) return null;
+  // Success step as a regular modal step
+  if (step === 'success') {
+    content = (
+      <div className="flex flex-col items-center justify-center w-full p-8">
+        <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
+        <div className="text-xl font-bold text-blue-700 mb-1 text-center">Welcome to Our Springfield!</div>
+        <div className="text-md text-gray-600 mb-3 text-center italic">Where every tile tells a story—yours is now part of the grid.</div>
+        <div className="text-2xl font-bold text-green-600 mb-2 text-center">Tile purchase complete!</div>
+        <div className="text-lg text-gray-700 text-center mb-2">
+          Your tile (ID: {tile?.id}) is now live!<br />
+          You can see your uploaded image on the <span className="font-semibold text-green-700">Springfield Grid</span>.
+        </div>
+      </div>
+    );
+  }
 
   // Modal content by step
-  let content;
   if (step === 'choose') {
     content = (
       <div className="flex flex-col items-center gap-6">
@@ -344,6 +354,9 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         onSubmit={e => {
           e.preventDefault();
           const errs = validateSocialLinks(userType, form, userSocialPlatform, userSocialValue, projectPrimaryPlatform, projectPrimaryValue, projectAdditionalLinks, imageFile);
+          if (!imageFile) {
+            errs.imageFile = 'Image is required.';
+          }
           setErrors(errs);
           if (Object.keys(errs).length === 0) {
             setStep('price');
@@ -384,8 +397,6 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
                   reader.onload = ev => setImagePreview(ev.target?.result as string);
                   reader.readAsDataURL(file);
                 }
-              } else {
-                setImagePreview(null);
               }
             }}
           />
@@ -575,17 +586,19 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         {errorMsg && <div className="text-red-600 font-bold text-center mb-2">{errorMsg}</div>}
         {successMsg && <div className="text-green-600 font-bold text-center mb-2">{successMsg}</div>}
         {/* Action Button (smaller, green, with cart icon) */}
-        <button
+          <button
           className="w-full py-2 mt-2 rounded-lg bg-green-500 text-black font-bold text-lg border-2 border-green-700 hover:bg-green-400 transition shadow flex items-center justify-center gap-2"
           disabled={loadingPrice || uploading}
           onClick={handleBuy}
         >
           {uploading ? <Loader2 className="animate-spin w-5 h-5 mr-1" /> : <ShoppingCart className="w-5 h-5 mr-1" />}
           {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : 'Buy Tile')}
-        </button>
+          </button>
       </div>
     );
   }
+
+  if (!open) return null;
 
   return (
     <div
@@ -594,12 +607,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       aria-modal="true"
       role="dialog"
       tabIndex={-1}
-      onClick={e => {
-        // Prevent closing on background click
-        if (e.target === e.currentTarget) {
-          e.stopPropagation();
-        }
-      }}
+      onClick={handleBackdropClick}
     >
       <div
         ref={modalRef}
