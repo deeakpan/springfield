@@ -412,7 +412,7 @@ export default function GridPage() {
                   {hoveredTile.isCenterArea ? 'Attention Layer' : `Tile (${hoveredTile.x}, ${hoveredTile.y}) - ID: ${hoveredTile.id}`}
                 </div>
                 {hoveredTile.isCenterArea ? (
-                  <div className="text-yellow-400 font-bold">Auction Active</div>
+                  <div className="text-yellow-400 font-bold">Auction Active - ID: {hoveredTile.id}</div>
                 ) : (
                   (() => {
                     const details = tileDetails[hoveredTile.id];
