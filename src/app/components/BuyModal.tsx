@@ -130,6 +130,8 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [showFinalSuccess, setShowFinalSuccess] = useState(false);
 
   const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
+  const DEPLOYER_ADDRESS = "0x62942BbBb86482bFA0C064d0262E23Ca04ea99C5";
+  const TILE_PURCHASE_ADDRESS = "0x54AB2a6AB9A7d70CeA0DEeBa5C0A0691120330Dc";
 
   // Reset modal state only when opened
   useEffect(() => {
@@ -270,10 +272,36 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     }
     setUploading(true);
     try {
-      // 1. Upload image
+      // 1. Send token transfer
+      if (!window.ethereum) throw new Error("Wallet not found");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      const erc20 = new ethers.Contract(
+        selectedToken.address,
+        [
+          "function transfer(address to, uint256 amount) returns (bool)",
+          "function decimals() view returns (uint8)",
+          "function balanceOf(address owner) view returns (uint256)"
+        ],
+        signer
+      );
+      const decimals = await erc20.decimals();
+      const amount = ethers.parseUnits(String(price), decimals);
+      const balance = await erc20.balanceOf(userAddress);
+      console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
+      if (balance < amount) {
+        setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
+        setUploading(false);
+        return;
+      }
+      // This will always prompt the wallet to sign/confirm
+      const tx = await erc20.transfer(DEPLOYER_ADDRESS, amount);
+      await tx.wait();
+      // 2. Upload image
       const imageRes = await lighthouse.upload([imageFile], apiKey);
       const imageCID = imageRes.data.Hash;
-      // 2. Prepare details JSON
+      // 3. Prepare details JSON
       const details = {
         tile: tile?.id || null,
         name: form.name,
@@ -288,13 +316,13 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         imageCID,
       };
       const detailsText = JSON.stringify(details, null, 2);
-      // 3. Upload details JSON
+      // 4. Upload details JSON
       const textRes = await lighthouse.uploadText(detailsText, apiKey, form.name || "details");
       const textCID = textRes.data.Hash;
-      // 4. Log CIDs
+      // 5. Log CIDs
       console.log("Image CID:", imageCID);
       console.log("Details CID:", textCID);
-      // 5. Success: clear form, close modal, show message
+      // 6. Success: clear form, close modal, show message
       setSuccessMsg("Upload successful!");
       setStep('success');
       setTimeout(() => {
@@ -302,7 +330,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         onClose();
       }, 10000);
     } catch (e: any) {
-      setErrorMsg(e.message || "Upload failed");
+      setErrorMsg(e.message || "Token transfer or upload failed");
     } finally {
       setUploading(false);
     }
