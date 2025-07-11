@@ -203,40 +203,38 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           } else {
             if (!selectedToken.address) throw new Error('No address for ERC20 token');
             try {
-              // For PENK: balanceOf() on proxy, decimals() on implementation
-              const proxyContract = new ethers.Contract(
-                selectedToken.address, // PENK proxy address
-                ["function balanceOf(address owner) view returns (uint256)"],
-                provider
-              );
+              // For PENK: call everything on the implementation contract
               const implementationContract = new ethers.Contract(
                 "0xE8a859a25249c8A5b9F44059937145FC67d65eD4", // PENK implementation
-                ["function decimals() view returns (uint8)"],
+                ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"],
                 provider
               );
-              const [bal, dec] = await Promise.all([
-                proxyContract.balanceOf(userAddress),
+              
+              const [balance, decimals] = await Promise.all([
+                implementationContract.balanceOf(userAddress),
                 implementationContract.decimals()
               ]);
-              setSprfdBalance(ethers.formatUnits(bal, dec));
-            } catch (err) {
-              console.error("Failed to fetch PENK balance:", err, {
-                address: selectedToken.address,
-                userAddress
-              });
-              // Fallback: hardcode to 18 decimals
-              try {
+              
+              // Validate the balance response
+              if (!balance || balance.toString() === "0" || balance.toString().includes("-")) {
+                console.log("Invalid balance from implementation, trying proxy...");
+                // Try proxy as fallback
                 const proxyContract = new ethers.Contract(
                   selectedToken.address,
                   ["function balanceOf(address owner) view returns (uint256)"],
                   provider
                 );
-                const bal = await proxyContract.balanceOf(userAddress);
-                setSprfdBalance(ethers.formatUnits(bal, 18));
-              } catch (fallbackErr) {
-                console.error("All PENK balance methods failed:", fallbackErr);
-                setSprfdBalance('');
+                const proxyBalance = await proxyContract.balanceOf(userAddress);
+                setSprfdBalance(ethers.formatUnits(proxyBalance, 18)); // Hardcode decimals
+              } else {
+                setSprfdBalance(ethers.formatUnits(balance, decimals));
               }
+            } catch (err) {
+              console.error("Failed to fetch PENK balance:", err, {
+                address: selectedToken.address,
+                userAddress
+              });
+              setSprfdBalance('');
             }
           }
         } catch (e) {
@@ -330,7 +328,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           ["function buyTileNative(uint256 tileId) external payable"],
           signer
         );
-        const tx = await tilePurchase.buyTileNative(tile?.id || 0, { value: nativeAmount });
+        const tx = await tilePurchase.buyTileNative(parseInt(tile?.id) || 0, { value: nativeAmount });
         await tx.wait();
       } else {
         // ERC20 token transfer via contract
@@ -363,7 +361,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           ["function buyTile(address token, uint256 amount, uint256 tileId) external"],
           signer
         );
-        const tx = await tilePurchase.buyTile(selectedToken.address, amount, tile?.id || 0);
+        const tx = await tilePurchase.buyTile(selectedToken.address, amount, parseInt(tile?.id) || 0);
         await tx.wait();
       }
 

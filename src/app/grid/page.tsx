@@ -24,6 +24,18 @@ interface Tile {
   height?: number;
 }
 
+// Convert coordinates to numeric tile ID
+const coordinatesToTileId = (x: number, y: number): number => {
+  return x + (y - 1) * 40; // 40 columns per row
+};
+
+// Convert numeric tile ID back to coordinates
+const tileIdToCoordinates = (tileId: number): { x: number, y: number } => {
+  const y = Math.floor((tileId - 1) / 40) + 1;
+  const x = ((tileId - 1) % 40) + 1;
+  return { x, y };
+};
+
 // Generate fresh 40x20 grid with center area
 const generateGrid = (): Tile[] => {
   const tiles: Tile[] = [];
@@ -38,10 +50,13 @@ const generateGrid = (): Tile[] => {
       // Skip individual tiles in center area - we'll add one big center tile
       if (isInCenter) continue;
       
+      const displayX = x + 1;
+      const displayY = y + 1;
+      
       tiles.push({
-        id: `${x}-${y}`,
-        x: x + 1, // Human readable coordinates
-        y: y + 1,
+        id: coordinatesToTileId(displayX, displayY).toString(),
+        x: displayX, // Human readable coordinates
+        y: displayY,
         owner: null,
         price: 5,
         color: '#E5E7EB',
@@ -52,7 +67,7 @@ const generateGrid = (): Tile[] => {
   
   // Add one big center tile
   tiles.push({
-    id: 'center-area',
+    id: coordinatesToTileId(17, 8).toString(),
     x: 17,
     y: 8,
     owner: null,
@@ -74,6 +89,20 @@ export default function GridPage() {
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any | null>(null);
   const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
+
+  // Convert old coordinate format to new numeric ID
+  const convertOldTileId = (oldId: string): string => {
+    if (!oldId || typeof oldId !== 'string') return oldId;
+    const parts = oldId.split('-');
+    if (parts.length === 2) {
+      const x = parseInt(parts[0]);
+      const y = parseInt(parts[1]);
+      if (!isNaN(x) && !isNaN(y)) {
+        return coordinatesToTileId(x, y).toString();
+      }
+    }
+    return oldId;
+  };
 
   // Fetch all details files from Lighthouse and build tileId -> details mapping
   useEffect(() => {
@@ -101,10 +130,12 @@ export default function GridPage() {
           const res = await fetch(url);
           const data = await res.json();
           if (data.tile) {
-            detailsMap[data.tile] = { ...data, cid: file.cid };
+            // Convert old coordinate format to new numeric ID
+            const newTileId = convertOldTileId(data.tile);
+            detailsMap[newTileId] = { ...data, cid: file.cid, originalTileId: data.tile };
             if (data.imageCID) {
               const imgUrl = `https://gateway.lighthouse.storage/ipfs/${data.imageCID}`;
-              console.log(`Tile ${data.tile}: image URL:`, imgUrl);
+              console.log(`Tile ${newTileId} (was ${data.tile}): image URL:`, imgUrl);
             }
           } else {
             console.warn('Details file missing tile field:', file, data);
@@ -372,13 +403,13 @@ export default function GridPage() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               style={{
-                left: hoveredTile.x * 16 + 100,
-                top: hoveredTile.y * 16 + 200,
+                left: Math.min(window.innerWidth - 200, Math.max(10, hoveredTile.x * 16 + 100)),
+                top: Math.min(window.innerHeight - 100, Math.max(10, hoveredTile.y * 16 + 200)),
               }}
             >
               <div className="text-sm">
                 <div className="font-bold">
-                  {hoveredTile.isCenterArea ? 'Attention Layer' : `Tile (${hoveredTile.x}, ${hoveredTile.y})`}
+                  {hoveredTile.isCenterArea ? 'Attention Layer' : `Tile (${hoveredTile.x}, ${hoveredTile.y}) - ID: ${hoveredTile.id}`}
                 </div>
                 {hoveredTile.isCenterArea ? (
                   <div className="text-yellow-400 font-bold">Auction Active</div>
