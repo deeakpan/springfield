@@ -6,6 +6,9 @@ import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
+import lighthouse from '@lighthouse-web3/sdk';
+import { useEffect } from 'react';
+import TileDetailsModal from '../components/TileDetailsModal';
 
 // Simple tile interface
 interface Tile {
@@ -68,6 +71,55 @@ export default function GridPage() {
   const [tiles, setTiles] = useState<Tile[]>(generateGrid());
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
   const [hoveredTile, setHoveredTile] = useState<Tile | null>(null);
+  const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
+  const [modalDetails, setModalDetails] = useState<any | null>(null);
+  const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
+
+  // Fetch all details files from Lighthouse and build tileId -> details mapping
+  useEffect(() => {
+    if (!apiKey) return;
+    let isMounted = true;
+    const fetchAllUploads = async () => {
+      let lastKey = null;
+      let allFiles: any[] = [];
+      while (true) {
+        const resp = await lighthouse.getUploads(apiKey, lastKey);
+        console.log('Lighthouse getUploads raw response:', resp);
+        const files = resp?.data?.fileList || [];
+        console.log('Lighthouse file names:', files.map(f => ({ name: f.fileName, mime: f.mimeType })));
+        allFiles = allFiles.concat(files);
+        if (files.length === 0 || files.length < 2000) break;
+        lastKey = files[files.length - 1].id;
+      }
+      // Only process JSON details files or octet-streams (raw details blobs)
+      const jsonFiles = allFiles.filter(f => f.fileName.endsWith('.json') || f.mimeType === 'application/octet-stream');
+      console.log('Lighthouse: Found', jsonFiles.length, 'details files');
+      const detailsMap: any = {};
+      await Promise.all(jsonFiles.map(async (file) => {
+        try {
+          const url = `https://gateway.lighthouse.storage/ipfs/${file.cid}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.tile) {
+            detailsMap[data.tile] = { ...data, cid: file.cid };
+            if (data.imageCID) {
+              const imgUrl = `https://gateway.lighthouse.storage/ipfs/${data.imageCID}`;
+              console.log(`Tile ${data.tile}: image URL:`, imgUrl);
+            }
+          } else {
+            console.warn('Details file missing tile field:', file, data);
+          }
+        } catch (e) {
+          console.error('Error parsing details file:', file, e);
+        }
+      }));
+      console.log('Mapped tile IDs:', Object.keys(detailsMap));
+      if (isMounted) setTileDetails(detailsMap);
+    };
+    fetchAllUploads();
+    return () => { isMounted = false; };
+  }, [apiKey]);
+
   // Show all tiles
   const filteredTiles = tiles;
 
@@ -266,34 +318,49 @@ export default function GridPage() {
                   gap: '0px',
                 }}
               >
-                {filteredTiles.map((tile) => (
-                  <motion.div
-                    key={tile.id}
-                    className="cursor-pointer"
-                    style={{
-                      backgroundColor: tile.isCenterArea ? '#fde047' : tile.color,
-                      gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
-                      gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
-                      border: '0.5px solid #374151',
-                    }}
-                    whileHover={{ scale: 1.02, zIndex: 10 }}
-                    onClick={() => handleBuyTile(tile)}
-                    onMouseEnter={() => setHoveredTile(tile)}
-                    onMouseLeave={() => setHoveredTile(null)}
-                  >
-                    {tile.isCenterArea ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
-                          <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+                {filteredTiles.map((tile) => {
+                  const details = tileDetails[tile.id];
+                  return (
+                    <motion.div
+                      key={tile.id}
+                      className="cursor-pointer"
+                      style={{
+                        backgroundColor: tile.isCenterArea ? '#fde047' : tile.color,
+                        gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
+                        gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
+                        border: '0.5px solid #374151',
+                        backgroundImage: details && details.imageCID ? `url(https://gateway.lighthouse.storage/ipfs/${details.imageCID})` : undefined,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        backgroundRepeat: 'no-repeat',
+                        padding: 0,
+                        margin: 0,
+                      }}
+                      whileHover={{ scale: 1.02, zIndex: 10 }}
+                      onClick={() => {
+                        if (details) {
+                          setModalDetails(details);
+                        } else {
+                          handleBuyTile(tile);
+                        }
+                      }}
+                      onMouseEnter={() => setHoveredTile(tile)}
+                      onMouseLeave={() => setHoveredTile(null)}
+                    >
+                      {tile.isCenterArea ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
+                            <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+                          </div>
                         </div>
-                      </div>
-                    ) : tile.owner ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Star className="w-2 h-2 text-black" />
-                      </div>
-                    ) : null}
-                  </motion.div>
-                ))}
+                      ) : details ? null : tile.owner ? (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Star className="w-2 h-2 text-black" />
+                        </div>
+                      ) : null}
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
           </motion.div>
@@ -316,9 +383,19 @@ export default function GridPage() {
                 {hoveredTile.isCenterArea ? (
                   <div className="text-yellow-400 font-bold">Auction Active</div>
                 ) : (
-                  <div>Price: {hoveredTile.price} $SPRFD</div>
+                  (() => {
+                    const details = tileDetails[hoveredTile.id];
+                    if (details) {
+                      return <>
+                        <div className="font-bold text-green-300">{details.name}</div>
+                        <div>Status: <span className="text-green-400 font-semibold">Claimed</span></div>
+                        <div>Owner: <span className="text-yellow-200">{details.name}</span></div>
+                      </>;
+                    } else {
+                      return <div>Status: <span className="text-red-400 font-semibold">Unclaimed</span></div>;
+                    }
+                  })()
                 )}
-                <div>Owner: {hoveredTile.owner ? 'Claimed' : 'Unclaimed'}</div>
               </div>
             </motion.div>
           )}
@@ -338,6 +415,9 @@ export default function GridPage() {
         onClose={() => setIsModalOpen(false)}
         tile={selectedTile || {}}
       />
+
+      {/* Modal for purchased tile details */}
+      <TileDetailsModal open={!!modalDetails} onClose={() => setModalDetails(null)} details={modalDetails} />
     </div>
   );
 } 
