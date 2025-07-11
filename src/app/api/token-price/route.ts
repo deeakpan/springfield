@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-// Supported token addresses
-const SPRFD_ADDRESS = "0x615d19AD0103652d012d886fA12a521485a3fbBD";
-const PEPU_ADDRESS = "0x5E9128De029d72C946d2E508C5d58F75C4486958";
-const PENK_ADDRESS = "0xD6d35F284b35131A2114AAad838D9b4cfF142aEa";
+import { SPRFD_ADDRESS, PEPU_ADDRESS, PENK_ADDRESS } from '../../../supportedTokens';
 
 export async function GET(req: NextRequest) {
   try {

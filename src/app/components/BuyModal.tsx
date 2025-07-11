@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, ShoppingCart } from 'lucide-react';
-import { SPRFD } from '../../supportedTokens';
+import { TOKENS } from '../../supportedTokens';
 import { ethers } from 'ethers';
 import Image from 'next/image';
+import lighthouse from '@lighthouse-web3/sdk';
 
 // Modal Props
 interface BuyModalProps {
@@ -27,24 +28,6 @@ const springfieldBlue = 'bg-blue-500';
 const springfieldBorder = 'border-4 border-black';
 const springfieldFont = 'font-bold';
 const springfieldButton = 'rounded-md px-6 py-2 text-lg font-bold border-2 border-black transition-all duration-200';
-
-const TOKENS = [
-  {
-    address: "0x615d19AD0103652d012d886fA12a521485a3fbBD",
-    name: "SPRFD",
-    logo: "/cool_bart-removebg-preview.png"
-  },
-  {
-    address: "0x5E9128De029d72C946d2E508C5d58F75C4486958",
-    name: "PEPU",
-    logo: "/peuchain-logo.jpg"
-  },
-  {
-    address: "0xD6d35F284b35131A2114AAad838D9b4cfF142aEa",
-    name: "PENK",
-    logo: "/6012603865783978322.jpg"
-  }
-];
 
 function validateSocialLinks(userType: UserType, form: typeof initialFormState, userSocialPlatform?: 'telegram' | 'discord' | 'x', userSocialValue?: string, projectPrimaryPlatform?: 'telegram' | 'discord' | 'x', projectPrimaryValue?: string, projectAdditionalLinks?: string[], imageFile?: File | null) {
   const errors: Record<string, string> = {};
@@ -139,6 +122,12 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [tokenName, setTokenName] = useState<string>('');
   const [sprfdBalance, setSprfdBalance] = useState<string>('');
   const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
 
   // Reset modal state only when opened
   useEffect(() => {
@@ -161,6 +150,10 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       setTokenName('');
       setSprfdBalance('');
       setSelectedToken(TOKENS[0]);
+      setConnectedAddress(null);
+      setUploading(false);
+      setErrorMsg(null);
+      setSuccessMsg(null);
     }
   }, [open]);
 
@@ -229,6 +222,94 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       return () => window.removeEventListener('keydown', handleKeyDown, true);
     }
   }, [open]);
+
+  // Fetch and set connected wallet address when modal opens
+  useEffect(() => {
+    async function fetchAddress() {
+      if (open && window.ethereum) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const addr = await signer.getAddress();
+          setConnectedAddress(addr);
+        } catch (e) {
+          setConnectedAddress(null);
+        }
+      }
+    }
+    fetchAddress();
+  }, [open]);
+
+  // Lighthouse upload logic
+  const handleBuy = async () => {
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    if (!imageFile) {
+      setErrorMsg("No image selected!");
+      return;
+    }
+    if (!apiKey) {
+      setErrorMsg("Lighthouse API key missing!");
+      return;
+    }
+    setUploading(true);
+    try {
+      // 1. Upload image
+      const imageRes = await lighthouse.upload([imageFile], apiKey);
+      const imageCID = imageRes.data.Hash;
+      // 2. Prepare details JSON
+      const details = {
+        tile: tile?.id || null,
+        name: form.name,
+        socials: userType === 'user'
+          ? { [userSocialPlatform]: userSocialValue }
+          : {
+              primary: { [projectPrimaryPlatform]: projectPrimaryValue },
+              additional: projectAdditionalLinks,
+            },
+        website: form.website,
+        address: connectedAddress,
+        imageCID,
+      };
+      const detailsText = JSON.stringify(details, null, 2);
+      // 3. Upload details JSON
+      const textRes = await lighthouse.uploadText(detailsText, apiKey, form.name || "details");
+      const textCID = textRes.data.Hash;
+      // 4. Log CIDs
+      console.log("Image CID:", imageCID);
+      console.log("Details CID:", textCID);
+      // 5. Success: clear form, close modal, show message
+      setSuccessMsg("Upload successful!");
+      setTimeout(() => {
+        setSuccessMsg(null);
+        onClose();
+      }, 1500);
+      // Clear all form state
+      setStep('choose');
+      setUserType(null);
+      setForm(initialFormState);
+      setErrors({});
+      setPrice('');
+      setLoadingPrice(false);
+      setSubmitting(false);
+      setShowSuccess(false);
+      setUserSocialPlatform('telegram');
+      setUserSocialValue('');
+      setProjectPrimaryPlatform('telegram');
+      setProjectPrimaryValue('');
+      setProjectAdditionalLinks(['', '']);
+      setImageFile(null);
+      setImagePreview(null);
+      setTokenName('');
+      setSprfdBalance('');
+      setSelectedToken(TOKENS[0]);
+      setConnectedAddress(null);
+    } catch (e: any) {
+      setErrorMsg(e.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -490,13 +571,17 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
             />
           </div>
         )}
+        {/* Error and Success Messages */}
+        {errorMsg && <div className="text-red-600 font-bold text-center mb-2">{errorMsg}</div>}
+        {successMsg && <div className="text-green-600 font-bold text-center mb-2">{successMsg}</div>}
         {/* Action Button (smaller, green, with cart icon) */}
         <button
           className="w-full py-2 mt-2 rounded-lg bg-green-500 text-black font-bold text-lg border-2 border-green-700 hover:bg-green-400 transition shadow flex items-center justify-center gap-2"
-          disabled={loadingPrice}
+          disabled={loadingPrice || uploading}
+          onClick={handleBuy}
         >
-          <ShoppingCart className="w-5 h-5 mr-1" />
-          {loadingPrice ? 'Loading...' : 'Buy Tile'}
+          {uploading ? <Loader2 className="animate-spin w-5 h-5 mr-1" /> : <ShoppingCart className="w-5 h-5 mr-1" />}
+          {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : 'Buy Tile')}
         </button>
       </div>
     );
