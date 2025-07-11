@@ -313,8 +313,8 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     content = (
       <div className="flex flex-col items-center justify-center w-full p-8">
         <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
-        <div className="text-xl font-bold text-blue-700 mb-1 text-center">Welcome to Our Springfield!</div>
-        <div className="text-md text-gray-600 mb-3 text-center italic">Where every tile tells a story—yours is now part of the grid.</div>
+        <div className={`text-xl font-bold text-yellow-300 mb-1 w-full text-center`}>Welcome to Our Springfield!</div>
+        <div className={`text-md text-black mb-3 w-full text-center italic`}>Where every tile tells a story—yours is now part of the grid.</div>
         <div className="text-2xl font-bold text-green-600 mb-2 text-center">Tile purchase complete!</div>
         <div className="text-lg text-gray-700 text-center mb-2">
           Your tile (ID: {tile?.id}) is now live!<br />
