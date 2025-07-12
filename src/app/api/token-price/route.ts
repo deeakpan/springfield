@@ -17,11 +17,11 @@ export async function GET(req: NextRequest) {
       const price = data?.data?.attributes?.base_token_price_usd || null;
       if (price) {
         pepuTokensFor7USD = 7 / parseFloat(price);
-      }
+    }
     }
     if (penkRes.ok) {
       const data = await penkRes.json();
-      const price = data?.data?.attributes?.base_token_price_usd || null;
+    const price = data?.data?.attributes?.base_token_price_usd || null;
       if (price) {
         penkTokensFor7USD = 7 / parseFloat(price);
       }

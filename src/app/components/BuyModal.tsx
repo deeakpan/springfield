@@ -658,7 +658,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           <div className="text-xs text-black mt-1 text-right pr-1">
             {sprfdBalance} available
           </div>
-        </div>
+                </div>
         {/* Details Section (compact, black border) */}
         <div className="bg-white rounded-md p-4 border-2 border-black w-full max-w-xs text-black text-left mb-2 shadow-sm flex flex-col gap-1">
           <div className="mb-1"><span className="font-bold text-yellow-500">Tile:</span> <span className="font-bold text-black">{tile?.id || 'N/A'}</span></div>

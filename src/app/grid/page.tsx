@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
@@ -9,6 +9,14 @@ import BuyModal from '../components/BuyModal';
 import lighthouse from '@lighthouse-web3/sdk';
 import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
+// Simple fallback component for the center tile
+const CenterTileFallback = () => (
+  <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
+    <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
+      <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+    </div>
+  </div>
+);
 
 // Simple tile interface
 interface Tile {
@@ -81,6 +89,8 @@ const generateGrid = (): Tile[] => {
   
   return tiles;
 };
+
+
 
 export default function GridPage() {
   const [tiles, setTiles] = useState<Tile[]>(generateGrid());
@@ -352,22 +362,38 @@ export default function GridPage() {
                 {filteredTiles.map((tile) => {
                   const details = tileDetails[tile.id];
                   return (
-                    <motion.div
-                      key={tile.id}
-                      className="cursor-pointer"
-                      style={{
-                        backgroundColor: tile.isCenterArea ? '#fde047' : tile.color,
-                        gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
-                        gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
-                        border: '0.5px solid #374151',
+                  <motion.div
+                    key={tile.id}
+                    className="cursor-pointer"
+                    style={{
+                      backgroundColor: tile.isCenterArea ? '#fde047' : tile.color,
+                      gridColumn: tile.isCenterArea ? `${tile.x} / span ${tile.width}` : tile.x,
+                      gridRow: tile.isCenterArea ? `${tile.y} / span ${tile.height}` : tile.y,
+                      border: '0.5px solid #374151',
                         backgroundImage: details && details.imageCID ? `url(https://gateway.lighthouse.storage/ipfs/${details.imageCID})` : undefined,
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
                         padding: 0,
                         margin: 0,
+                        transform: tile.isCenterArea ? 'perspective(1000px) rotateX(0deg) rotateY(0deg)' : 'none',
+                        transformStyle: tile.isCenterArea ? 'preserve-3d' : 'flat',
+                        transition: tile.isCenterArea ? 'all 0.3s ease' : 'all 0.2s ease',
+                        boxShadow: details ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
+                    }}
+                      whileHover={tile.isCenterArea ? {
+                        scale: 1.05,
+                        zIndex: 20,
+                        rotateX: 15,
+                        rotateY: 15,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.3), 0 0 20px rgba(255,215,0,0.5)',
+                        filter: 'brightness(1.1)',
+                      } : { 
+                        scale: 1.1, 
+                        zIndex: 15,
+                        boxShadow: '0 8px 16px rgba(0,0,0,0.3), 0 0 8px rgba(59,130,246,0.5)',
+                        filter: 'brightness(1.2)',
                       }}
-                      whileHover={{ scale: 1.02, zIndex: 10 }}
                       onClick={() => {
                         if (details) {
                           setModalDetails(details);
@@ -375,21 +401,17 @@ export default function GridPage() {
                           handleBuyTile(tile);
                         }
                       }}
-                      onMouseEnter={() => setHoveredTile(tile)}
-                      onMouseLeave={() => setHoveredTile(null)}
-                    >
-                      {tile.isCenterArea ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
-                            <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
-                          </div>
-                        </div>
+                    onMouseEnter={() => setHoveredTile(tile)}
+                    onMouseLeave={() => setHoveredTile(null)}
+                  >
+                    {tile.isCenterArea ? (
+                        <CenterTileFallback />
                       ) : details ? null : tile.owner ? (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <Star className="w-2 h-2 text-black" />
-                        </div>
-                      ) : null}
-                    </motion.div>
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Star className="w-2 h-2 text-black" />
+                      </div>
+                    ) : null}
+                  </motion.div>
                   );
                 })}
               </div>
@@ -399,31 +421,36 @@ export default function GridPage() {
           {/* Hover Info */}
           {hoveredTile && !selectedTile && (
             <motion.div
-              className="fixed bg-black text-white p-3 rounded-lg shadow-lg z-40 pointer-events-none border border-gray-600"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
+              className="fixed bg-black/90 backdrop-blur-sm text-white p-4 rounded-xl shadow-2xl z-50 pointer-events-none border border-white/20"
+              initial={{ opacity: 0, scale: 0.9, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
               style={{
-                left: Math.min(window.innerWidth - 200, Math.max(10, hoveredTile.x * 16 + 100)),
-                top: Math.min(window.innerHeight - 100, Math.max(10, hoveredTile.y * 16 + 200)),
+                left: Math.min(window.innerWidth - 250, Math.max(20, hoveredTile.x * 16 + 50)),
+                top: Math.min(window.innerHeight - 120, Math.max(20, hoveredTile.y * 16 + 50)),
               }}
             >
-              <div className="text-sm">
-                <div className="font-bold">
-                  {hoveredTile.isCenterArea ? 'Attention Layer' : `Tile (${hoveredTile.x}, ${hoveredTile.y}) - ID: ${hoveredTile.id}`}
+              <div className="text-sm space-y-2">
+                <div className="font-bold text-lg">
+                  {hoveredTile.isCenterArea ? '🎯 Attention Layer' : `📍 Tile (${hoveredTile.x}, ${hoveredTile.y})`}
                 </div>
+                <div className="text-xs text-gray-300">ID: {hoveredTile.id}</div>
                 {hoveredTile.isCenterArea ? (
-                  <div className="text-yellow-400 font-bold">Auction Active - ID: {hoveredTile.id}</div>
+                  <div className="text-yellow-400 font-bold text-base">🔥 Auction Active</div>
                 ) : (
                   (() => {
                     const details = tileDetails[hoveredTile.id];
                     if (details) {
                       return <>
-                        <div className="font-bold text-green-300">{details.name}</div>
-                        <div>Status: <span className="text-green-400 font-semibold">Claimed</span></div>
-                        <div>Owner: <span className="text-yellow-200">{details.name}</span></div>
+                        <div className="font-bold text-green-300 text-base">✅ {details.name}</div>
+                        <div className="text-green-400 font-semibold">Status: Claimed</div>
+                        <div className="text-yellow-200">Owner: {details.name}</div>
                       </>;
                     } else {
-                      return <div>Status: <span className="text-red-400 font-semibold">Unclaimed</span></div>;
+                      return <>
+                        <div className="text-red-400 font-semibold text-base">❌ Status: Unclaimed</div>
+                        <div className="text-xs text-gray-400">Click to purchase</div>
+                      </>;
                     }
                   })()
                 )}
