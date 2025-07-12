@@ -7,9 +7,10 @@ import * as THREE from 'three';
 
 interface Cube3DProps {
   isHovered: boolean;
+  auctionDetails?: any; // For auction tiles
 }
 
-const Cube3DComponent = ({ isHovered }: Cube3DProps) => {
+const Cube3DComponent = ({ isHovered, auctionDetails }: Cube3DProps) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   
@@ -49,6 +50,14 @@ const Cube3DComponent = ({ isHovered }: Cube3DProps) => {
         <meshBasicMaterial color="#ffffff" />
       </mesh>
       
+      {/* Auction QR Code - shows project primary link after auction ends */}
+      {auctionDetails && (
+        <mesh position={[0, 0, 1.02]}>
+          <planeGeometry args={[1.6, 1.6]} />
+          <meshBasicMaterial color="#fde047" />
+        </mesh>
+      )}
+      
       <OrbitControls 
         enablePan={false}
         enableZoom={false}
@@ -62,14 +71,14 @@ const Cube3DComponent = ({ isHovered }: Cube3DProps) => {
   );
 };
 
-const Cube3D = ({ isHovered }: Cube3DProps) => {
+const Cube3D = ({ isHovered, auctionDetails }: Cube3DProps) => {
   return (
     <div className="w-full h-full">
       <Canvas
         camera={{ position: [0, 0, 5], fov: 50 }}
         style={{ width: '100%', height: '100%' }}
       >
-        <Cube3DComponent isHovered={isHovered} />
+        <Cube3DComponent isHovered={isHovered} auctionDetails={auctionDetails} />
       </Canvas>
     </div>
   );
