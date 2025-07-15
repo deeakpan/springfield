@@ -7,7 +7,7 @@ A blockchain-powered digital tile grid where users can own, customize, and showc
 - **40x20 Digital Grid** - Own your piece of the digital world
 - **Dual Token Payments** - Buy tiles with $SPRFD or $PEPU tokens
 - **Customizable Tiles** - Add images, links, social media, and project details
-- **Auction System** - 1-minute auctions for the center attention layer
+- **Automatic Auction System** - Daily auctions at 8:53 UTC with 3-minute duration and winner display
 - **IPFS Integration** - All metadata stored on IPFS for decentralization
 - **Real-time Updates** - Instant blockchain updates across the grid
 
@@ -25,10 +25,12 @@ A blockchain-powered digital tile grid where users can own, customize, and showc
 
 ### TileAuction Contract
 - **Network:** Pepe Unchained V2
-- **Address:** `0x03C3e737F56ec7bd812918060A1422FDA50D8505`
-- **Auction Duration:** 1 minute
+- **Address:** `0xb4eD67afF270e00A8a30D40515b4eb410D4dEECE
+- **Auction Duration:** 3 minutes
+- **Winner Display Duration:** 3 minutes
+- **Auto-Auction Time:** 10:45 UTC daily
 - **Payout Address:** `0x95C46439bD9559e10c4fF49bfF3e20720d93B66E`
-- **Purpose:** Manages auctions for the center attention layer (tiles 17-23, rows 8-12)
+- **Purpose:** Manages automatic auctions for the center attention layer
 
 ## Architecture
 
@@ -36,6 +38,7 @@ A blockchain-powered digital tile grid where users can own, customize, and showc
 - **Simplified Storage** - Contract only stores metadata CID, not individual fields
 - **IPFS Integration** - All project details stored on IPFS
 - **Gas Efficient** - Minimal on-chain storage for cost optimization
+- **Automatic Flow** - Auctions start automatically at scheduled time
 
 ### Frontend Integration
 The contract addresses are configured in:
@@ -54,15 +57,23 @@ The contract addresses are configured in:
 
 ### Center Attention Layer
 - **Location:** Tiles 17-23, rows 8-12 (7x5 block)
-- **Duration:** 1 minute auctions
+- **Duration:** 3 minutes auctions
+- **Winner Display:** 3 minutes after auction ends
 - **Bidding:** PENK or PEPU tokens
-- **Winner:** Gets maximum visibility for 48 hours
+- **Auto-Schedule:** 8:53 UTC daily
 
-### Auction Process
-1. **Create Auction** - Owner creates 1-minute auction
-2. **Place Bid** - Users bid with project details and image
-3. **End Auction** - Highest bidder wins
-4. **Display Project** - Winner's project shown on center tiles
+### Automatic Auction Flow
+1. **Auto-Start** - Auction starts automatically at 10:45 UTC
+2. **Bidding Period** - 3 minutes of active bidding
+3. **Auction Ends** - Highest bidder wins, winner display begins
+4. **Winner Display** - Winner's project shown for 3 minutes
+5. **Complete** - Funds transferred, auction fully ended
+
+### Deployer Controls
+- **Claim Accumulated Funds** - Only deployer can claim contract balance
+- **Toggle Auto-Auction** - Enable/disable automatic scheduling
+- **Emergency Withdraw** - Recover stuck tokens
+- **Contract Balance View** - Only deployer can view contract balance
 
 ## Development
 
@@ -132,16 +143,20 @@ npm run dev
 - **Real-time Updates** - Instant blockchain updates
 
 ### Auction Features
-- **1-minute Duration** - Fast-paced bidding
+- **3-minute Duration** - Fast-paced bidding with winner display
+- **Automatic Scheduling** - Daily auctions at 10:45 UTC
+- **Winner Display Period** - 3 minutes to showcase winner
 - **Dual Token Support** - PENK and PEPU bidding
 - **Automatic Refunds** - Losing bidders get refunds
 - **Project Display** - Winner's project shown on center tiles
+- **Deployer Fund Management** - Claim accumulated auction funds
 
 ### Grid Features
 - **40x20 Layout** - 800 total tiles
 - **Center Attention Layer** - Premium auction area
 - **Hover Tooltips** - Real-time tile information
 - **Modal System** - Buy, auction, and details modals
+- **Status Indicators** - Visual auction state indicators
 
 ## Network Configuration
 

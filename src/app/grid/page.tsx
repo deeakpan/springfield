@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { useState, Suspense } from 'react';
 import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
 import AuctionModal from '../components/AuctionModal';
@@ -93,7 +93,11 @@ const generateGrid = (): Tile[] => {
   return tiles;
 };
 
-
+const yellowTheme = darkTheme({
+  accentColor: '#facc15', // Tailwind yellow-400
+  accentColorForeground: '#000',
+  borderRadius: 'medium',
+});
 
 export default function GridPage() {
   const [tiles, setTiles] = useState<Tile[]>(generateGrid());
@@ -106,7 +110,10 @@ export default function GridPage() {
   // Add state for auction contract details
   const [auctionContractDetails, setAuctionContractDetails] = useState<any>({});
 
-  const TILE_AUCTION_ADDRESS = "0x03C3e737F56ec7bd812918060A1422FDA50D8505";
+  const TILE_AUCTION_ADDRESS = "0xb4eD67afF270e00A8a30D40515b4eb410D4dEECE";
+
+  // Add state for next auction time
+  const [nextAuctionTime, setNextAuctionTime] = useState<string>("");
 
   // Fetch auction metadata from IPFS when contract has metadata CID
   useEffect(() => {
@@ -118,7 +125,12 @@ export default function GridPage() {
         const tileAuction = new ethers.Contract(
           TILE_AUCTION_ADDRESS,
           [
-            "function getAuction(uint256) view returns (address,uint256,uint256,bool,address,bool,string)"
+            "function getAuction(uint256) view returns (address,uint256,address,bool,string,bool,bool)",
+            "function getNextTuesdayAuctionStart(uint256) pure returns (uint256)",
+            "function placeBid(uint256,uint256,string)",
+            "function placeBidNative(uint256,string) payable",
+            "function settleAuction(uint256)",
+            "function claimRefund(uint256)"
           ],
           provider
         );
@@ -130,11 +142,11 @@ export default function GridPage() {
         const [
           highestBidder,
           highestBid,
-          endTime,
-          ended,
           token,
           isNative,
-          metadataCID
+          metadataCID,
+          auctionActive,
+          winnerDisplayActive
         ] = auctionData;
 
         // If there's a metadata CID, fetch the details from IPFS
@@ -150,8 +162,7 @@ export default function GridPage() {
               [centerTileId.toString()]: {
                 ...metadata,
                 cid: metadataCID,
-                isAuction: !ended,
-                auctionEndTime: new Date(Number(endTime) * 1000).toISOString(),
+                isAuction: auctionActive,
                 bidAmount: highestBid.toString(),
                 bidToken: isNative ? 'PEPU' : 'PENK',
                 address: highestBidder
@@ -167,12 +178,17 @@ export default function GridPage() {
         setAuctionContractDetails({
           highestBidder,
           highestBid: highestBid.toString(),
-          endTime: endTime.toString(),
-          ended,
           token,
           isNative,
-          metadataCID
+          metadataCID,
+          auctionActive,
+          winnerDisplayActive
         });
+
+        // Fetch next auction time
+        const now = Math.floor(Date.now() / 1000);
+        const nextAuctionTs = await tileAuction.getNextTuesdayAuctionStart(now);
+        setNextAuctionTime(new Date(Number(nextAuctionTs) * 1000).toLocaleString());
 
       } catch (error) {
         console.error('Error fetching auction details:', error);
@@ -261,7 +277,7 @@ export default function GridPage() {
     if (tile.isCenterArea) {
       setIsAuctionModalOpen(true);
     } else {
-      setIsModalOpen(true);
+    setIsModalOpen(true);
     }
     setModalUserType(null); // Reset user type selection
   };
@@ -309,38 +325,7 @@ export default function GridPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <ConnectButton.Custom>
-                {({ account, chain, openConnectModal, openAccountModal, authenticationStatus, mounted }) => {
-                  const ready = mounted && authenticationStatus !== 'loading';
-                  const connected =
-                    ready &&
-                    account &&
-                    chain &&
-                    (!authenticationStatus || authenticationStatus === 'authenticated');
-                  if (!connected) {
-                    return (
-                      <button
-                        onClick={openConnectModal}
-                        type="button"
-                        className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
-                      >
-                        <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
-                        <span className="truncate">Connect Wallet</span>
-                      </button>
-                    );
-                  }
-                  return (
-                    <button
-                      onClick={openAccountModal}
-                      type="button"
-                      className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
-                    >
-                      <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span className="truncate">{account.displayName}</span>
-                    </button>
-                  );
-                }}
-              </ConnectButton.Custom>
+              <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
             </motion.div>
           </div>
         </div>
@@ -405,9 +390,7 @@ export default function GridPage() {
                 <div className="text-lg sm:text-2xl font-semibold text-white">
                   {(() => {
                     const contractDetails = auctionContractDetails;
-                    if (contractDetails.ended) {
-                      return 'ENDED';
-                    } else if (contractDetails.highestBidder && contractDetails.highestBidder !== '0x0000000000000000000000000000000000000000') {
+                    if (contractDetails.auctionActive) {
                       return 'ACTIVE';
                     } else {
                       return 'WAITING';
@@ -417,10 +400,8 @@ export default function GridPage() {
                 <div className="text-purple-400/70 text-[10px] sm:text-xs mt-1">
                   {(() => {
                     const contractDetails = auctionContractDetails;
-                    if (contractDetails.ended) {
-                      return 'Auction Complete';
-                    } else if (contractDetails.highestBidder && contractDetails.highestBidder !== '0x0000000000000000000000000000000000000000') {
-                      return 'Bidding Open';
+                    if (contractDetails.auctionActive) {
+                      return 'Auction Active';
                     } else {
                       return 'No Auction';
                     }
@@ -481,10 +462,7 @@ export default function GridPage() {
                   } else if (tile.isCenterArea) {
                     // Center tile auction state
                     const contractDetails = auctionContractDetails;
-                    if (contractDetails.ended) {
-                      bgColor = '#22c55e';
-                      tooltip = 'Auction ended';
-                    } else if (contractDetails.highestBidder && contractDetails.highestBidder !== '0x0000000000000000000000000000000000000000') {
+                    if (contractDetails.auctionActive) {
                       bgColor = '#fde047';
                       tooltip = 'Auction active';
                     } else {
@@ -578,10 +556,8 @@ export default function GridPage() {
                 {hoveredTile.isCenterArea ? (
                   (() => {
                     const contractDetails = auctionContractDetails;
-                    if (contractDetails.ended) {
-                      return <div className="text-green-400 font-bold text-base">✅ Auction Ended</div>;
-                    } else if (contractDetails.highestBidder && contractDetails.highestBidder !== '0x0000000000000000000000000000000000000000') {
-                      return <div className="text-yellow-400 font-bold text-base">🔥 Auction Active</div>;
+                    if (contractDetails.auctionActive) {
+                      return <div className="text-green-400 font-bold text-base">✅ Auction Active</div>;
                     } else {
                       return <div className="text-gray-400 font-bold text-base">⏳ No Auction</div>;
                     }
@@ -617,11 +593,13 @@ export default function GridPage() {
       />
 
       {/* Modal for auction */}
-      <AuctionModal
-        open={isAuctionModalOpen}
-        onClose={() => setIsAuctionModalOpen(false)}
-        tile={selectedTile || {}}
-      />
+      {selectedTile && (
+        <AuctionModal
+          open={isAuctionModalOpen}
+          onClose={() => setIsAuctionModalOpen(false)}
+          tile={selectedTile}
+        />
+      )}
 
       {/* Modal for purchased tile details */}
       <TileDetailsModal open={!!modalDetails} onClose={() => setModalDetails(null)} details={modalDetails} />
@@ -631,6 +609,8 @@ export default function GridPage() {
         <div className="fixed bottom-4 right-4 z-40">
           <AuctionStatus 
             auctionDetails={auctionDetails}
+            auctionActive={auctionContractDetails.auctionActive}
+            nextAuctionTime={nextAuctionTime}
             onAuctionEnd={() => {
               // Handle auction end - update QR code to point to project primary link
               console.log('Auction ended, updating QR code...');

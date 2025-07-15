@@ -114,9 +114,9 @@ const TileDetailsModal: React.FC<TileDetailsModalProps> = ({ open, onClose, deta
             )}
           </>
         ) : (
-          <div className="mb-1 text-center w-full flex flex-wrap justify-center">
-            <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
-          </div>
+        <div className="mb-1 text-center w-full flex flex-wrap justify-center">
+          <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
+        </div>
         )}
         
         {details.socials && (

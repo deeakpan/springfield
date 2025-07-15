@@ -6,120 +6,119 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract TileAuction is Ownable, ReentrancyGuard {
-    // Auction structure
-    struct Auction {
-        address highestBidder;
-        uint256 highestBid;
-        uint256 endTime;
-        bool ended;
-        address token; // PENK or PEPU (native)
-        bool isNative;
-        // Only store the metadata CID
-        string metadataCID;
-    }
-    
-    // Mapping from tileId to auction
-    mapping(uint256 => Auction) public auctions;
-    
-    // Mapping to track bids for refunds
-    mapping(uint256 => mapping(address => uint256)) public bids;
-    
-    // Events
-    event AuctionCreated(uint256 indexed tileId, uint256 endTime);
-    event BidPlaced(uint256 indexed tileId, address indexed bidder, uint256 amount, address token, string metadataCID);
-    event AuctionEnded(uint256 indexed tileId, address indexed winner, uint256 amount, string metadataCID);
-    event BidRefunded(uint256 indexed tileId, address indexed bidder, uint256 amount);
-    
-    address public constant PAYOUT_ADDRESS = 0x95C46439bD9559e10c4fF49bfF3e20720d93B66E;
-    uint256 public constant AUCTION_DURATION = 1 minutes;
-    
-    constructor() Ownable(msg.sender) {}
-    
-    // Create auction for a tile
-    function createAuction(uint256 tileId) external onlyOwner {
-        require(auctions[tileId].endTime == 0, "Auction already exists");
-        
-        auctions[tileId] = Auction({
+    constructor() Ownable(msg.sender) {
+        // Initialize the auction for tile 665 so getAuction(665) always returns a valid struct
+        uint256 centerTileId = 665;
+        auctions[centerTileId] = Auction({
             highestBidder: address(0),
             highestBid: 0,
-            endTime: block.timestamp + AUCTION_DURATION,
-            ended: false,
             token: address(0),
             isNative: false,
             metadataCID: ""
         });
-        
-        emit AuctionCreated(tileId, block.timestamp + AUCTION_DURATION);
+    }
+
+    struct Auction {
+        address highestBidder;
+        uint256 highestBid;
+        address token; // PENK or PEPU (native)
+        bool isNative;
+        string metadataCID;
     }
     
-    // Place bid with PENK (ERC20) and store metadata CID
-    function placeBid(
-        uint256 tileId, 
-        uint256 amount,
-        string memory metadataCID
-    ) external nonReentrant {
-        Auction storage auction = auctions[tileId];
-        require(auction.endTime > 0, "Auction does not exist");
-        require(block.timestamp < auction.endTime, "Auction ended");
-        require(amount > auction.highestBid, "Bid too low");
+    mapping(uint256 => Auction) public auctions;
+    mapping(uint256 => mapping(address => uint256)) public bids;
+    
+    address public constant PAYOUT_ADDRESS = 0x95C46439bD9559e10c4fF49bfF3e20720d93B66E;
+    uint256 public constant AUCTION_DURATION = 5 minutes;
+    uint256 public constant WINNER_DISPLAY_DURATION = 5 minutes;
+    uint256 public constant WEEK = 7 days;
+    uint256 public constant TUESDAY_UTC = 2 days; // 0 = Sunday, 1 = Monday, 2 = Tuesday
+    uint256 public constant AUCTION_START_HOUR = 1;
+    uint256 public constant AUCTION_START_MINUTE = 30;
+
+    event BidPlaced(uint256 indexed tileId, address indexed bidder, uint256 amount, address token, string metadataCID);
+    event AuctionSettled(uint256 indexed tileId, address indexed winner, uint256 amount, string metadataCID);
+    event BidRefunded(uint256 indexed tileId, address indexed bidder, uint256 amount);
+
+    // Returns the timestamp for the next Tuesday 1:30 UTC after a given timestamp
+    function getNextTuesdayAuctionStart(uint256 fromTimestamp) public pure returns (uint256) {
+        uint256 dayOfWeek = (fromTimestamp / 1 days + 4) % 7; // 1970-01-01 was a Thursday
+        uint256 daysUntilTuesday = (TUESDAY_UTC + 7 - dayOfWeek) % 7;
+        uint256 nextTuesday = (fromTimestamp / 1 days + daysUntilTuesday) * 1 days;
+        uint256 auctionStart = nextTuesday + AUCTION_START_HOUR * 1 hours + AUCTION_START_MINUTE * 1 minutes;
+        if (auctionStart <= fromTimestamp) {
+            auctionStart += WEEK;
+        }
+        return auctionStart;
+    }
+
+    // Returns the current auction period (start, end, displayEnd)
+    function getCurrentAuctionPeriod() public view returns (uint256 start, uint256 end, uint256 displayEnd) {
+        uint256 nowTs = block.timestamp;
+        uint256 lastAuctionStart = getNextTuesdayAuctionStart(nowTs) - WEEK;
+        start = lastAuctionStart;
+        end = start + AUCTION_DURATION;
+        displayEnd = end + WINNER_DISPLAY_DURATION;
+    }
+
+    // Returns true if the auction is currently active
+    function isAuctionActive() public view returns (bool) {
+        (uint256 start, uint256 end, ) = getCurrentAuctionPeriod();
+        return block.timestamp >= start && block.timestamp < end;
+    }
+
+    // Returns true if the winner display period is active
+    function isWinnerDisplayActive() public view returns (bool) {
+        (uint256 start, uint256 end, uint256 displayEnd) = getCurrentAuctionPeriod();
+        return block.timestamp >= end && block.timestamp < displayEnd;
+    }
+
+    // Returns true if the auction is in the idle period
+    function isIdlePeriod() public view returns (bool) {
+        (uint256 start, , uint256 displayEnd) = getCurrentAuctionPeriod();
+        return block.timestamp >= displayEnd && block.timestamp < start + WEEK;
+    }
+
+    // Place bid with PENK (ERC20)
+    function placeBid(uint256 tileId, uint256 amount, string memory metadataCID) external nonReentrant {
+        require(isAuctionActive(), "Auction not active");
+        require(amount > auctions[tileId].highestBid, "Bid too low");
         require(bytes(metadataCID).length > 0, "Metadata CID required");
-        
-        // Transfer tokens from bidder to contract
         IERC20 token = IERC20(0xE8a859a25249c8A5b9F44059937145FC67d65eD4); // PENK
         require(token.transferFrom(msg.sender, address(this), amount), "Transfer failed");
-        
-        // Refund previous highest bidder if exists
-        if (auction.highestBidder != address(0)) {
-            bids[tileId][auction.highestBidder] += auction.highestBid;
+        if (auctions[tileId].highestBidder != address(0)) {
+            bids[tileId][auctions[tileId].highestBidder] += auctions[tileId].highestBid;
         }
-        
-        // Update auction with new bid and metadata CID
-        auction.highestBidder = msg.sender;
-        auction.highestBid = amount;
-        auction.token = address(token);
-        auction.isNative = false;
-        auction.metadataCID = metadataCID;
-        
+        auctions[tileId].highestBidder = msg.sender;
+        auctions[tileId].highestBid = amount;
+        auctions[tileId].token = address(token);
+        auctions[tileId].isNative = false;
+        auctions[tileId].metadataCID = metadataCID;
         emit BidPlaced(tileId, msg.sender, amount, address(token), metadataCID);
     }
     
-    // Place bid with PEPU (native) and store metadata CID
-    function placeBidNative(
-        uint256 tileId,
-        string memory metadataCID
-    ) external payable nonReentrant {
-        Auction storage auction = auctions[tileId];
-        require(auction.endTime > 0, "Auction does not exist");
-        require(block.timestamp < auction.endTime, "Auction ended");
-        require(msg.value > auction.highestBid, "Bid too low");
+    // Place bid with PEPU (native)
+    function placeBidNative(uint256 tileId, string memory metadataCID) external payable nonReentrant {
+        require(isAuctionActive(), "Auction not active");
+        require(msg.value > auctions[tileId].highestBid, "Bid too low");
         require(bytes(metadataCID).length > 0, "Metadata CID required");
-        
-        // Refund previous highest bidder if exists
-        if (auction.highestBidder != address(0)) {
-            bids[tileId][auction.highestBidder] += auction.highestBid;
+        if (auctions[tileId].highestBidder != address(0)) {
+            bids[tileId][auctions[tileId].highestBidder] += auctions[tileId].highestBid;
         }
-        
-        // Update auction with new bid and metadata CID
-        auction.highestBidder = msg.sender;
-        auction.highestBid = msg.value;
-        auction.token = address(0);
-        auction.isNative = true;
-        auction.metadataCID = metadataCID;
-        
+        auctions[tileId].highestBidder = msg.sender;
+        auctions[tileId].highestBid = msg.value;
+        auctions[tileId].token = address(0);
+        auctions[tileId].isNative = true;
+        auctions[tileId].metadataCID = metadataCID;
         emit BidPlaced(tileId, msg.sender, msg.value, address(0), metadataCID);
     }
     
-    // End auction and transfer funds
-    function endAuction(uint256 tileId) external onlyOwner {
+    // Settle auction and transfer funds to payout address (can be called by anyone, only during winner display period)
+    function settleAuction(uint256 tileId) public nonReentrant {
+        require(isWinnerDisplayActive(), "Not in winner display period");
         Auction storage auction = auctions[tileId];
-        require(auction.endTime > 0, "Auction does not exist");
-        require(block.timestamp >= auction.endTime, "Auction not ended");
-        require(!auction.ended, "Auction already ended");
-        
-        auction.ended = true;
-        
-        if (auction.highestBidder != address(0)) {
-            // Transfer winning bid to payout address
+        if (auction.highestBidder != address(0) && auction.highestBid > 0) {
             if (auction.isNative) {
                 (bool sent, ) = PAYOUT_ADDRESS.call{value: auction.highestBid}("");
                 require(sent, "Failed to send native tokens");
@@ -127,8 +126,13 @@ contract TileAuction is Ownable, ReentrancyGuard {
                 IERC20 token = IERC20(auction.token);
                 require(token.transfer(PAYOUT_ADDRESS, auction.highestBid), "Failed to send tokens");
             }
-            
-            emit AuctionEnded(tileId, auction.highestBidder, auction.highestBid, auction.metadataCID);
+            emit AuctionSettled(tileId, auction.highestBidder, auction.highestBid, auction.metadataCID);
+            // Reset auction for next week
+            auction.highestBidder = address(0);
+            auction.highestBid = 0;
+            auction.token = address(0);
+            auction.isNative = false;
+            auction.metadataCID = "";
         }
     }
     
@@ -136,52 +140,29 @@ contract TileAuction is Ownable, ReentrancyGuard {
     function claimRefund(uint256 tileId) external nonReentrant {
         uint256 refundAmount = bids[tileId][msg.sender];
         require(refundAmount > 0, "No refund available");
-        
         bids[tileId][msg.sender] = 0;
-        
-        // Send refund
         (bool sent, ) = msg.sender.call{value: refundAmount}("");
         require(sent, "Failed to send refund");
-        
         emit BidRefunded(tileId, msg.sender, refundAmount);
     }
     
-    // Get auction info
+    // Get auction info for frontend
     function getAuction(uint256 tileId) external view returns (
         address highestBidder,
         uint256 highestBid,
-        uint256 endTime,
-        bool ended,
         address token,
         bool isNative,
-        string memory metadataCID
+        string memory metadataCID,
+        bool auctionActive,
+        bool winnerDisplayActive
     ) {
         Auction storage auction = auctions[tileId];
-        return (
-            auction.highestBidder,
-            auction.highestBid,
-            auction.endTime,
-            auction.ended,
-            auction.token,
-            auction.isNative,
-            auction.metadataCID
-        );
-    }
-    
-    // Get bid amount for a user
-    function getBid(uint256 tileId, address bidder) external view returns (uint256) {
-        return bids[tileId][bidder];
-    }
-    
-    // Emergency function to withdraw stuck tokens (only owner)
-    function emergencyWithdraw(address token) external onlyOwner {
-        if (token == address(0)) {
-            (bool sent, ) = owner().call{value: address(this).balance}("");
-            require(sent, "Failed to withdraw native tokens");
-        } else {
-            IERC20 erc20Token = IERC20(token);
-            uint256 balance = erc20Token.balanceOf(address(this));
-            require(erc20Token.transfer(owner(), balance), "Failed to withdraw tokens");
-        }
+        highestBidder = auction.highestBidder;
+        highestBid = auction.highestBid;
+        token = auction.token;
+        isNative = auction.isNative;
+        metadataCID = auction.metadataCID;
+        auctionActive = isAuctionActive();
+        winnerDisplayActive = isWinnerDisplayActive();
     }
 } 
