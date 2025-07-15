@@ -110,7 +110,7 @@ export default function GridPage() {
   // Add state for auction contract details
   const [auctionContractDetails, setAuctionContractDetails] = useState<any>({});
 
-  const TILE_AUCTION_ADDRESS = "0xb4eD67afF270e00A8a30D40515b4eb410D4dEECE";
+  const TILE_AUCTION_ADDRESS = "0x60F7cD6513812a6ef7A871C4EBFFd3cCE1c2c2E0";
 
   // Add state for next auction time
   const [nextAuctionTime, setNextAuctionTime] = useState<string>("");

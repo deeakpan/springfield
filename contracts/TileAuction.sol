@@ -34,8 +34,8 @@ contract TileAuction is Ownable, ReentrancyGuard {
     uint256 public constant WINNER_DISPLAY_DURATION = 5 minutes;
     uint256 public constant WEEK = 7 days;
     uint256 public constant TUESDAY_UTC = 2 days; // 0 = Sunday, 1 = Monday, 2 = Tuesday
-    uint256 public constant AUCTION_START_HOUR = 1;
-    uint256 public constant AUCTION_START_MINUTE = 30;
+    uint256 public constant AUCTION_START_HOUR = 16;
+    uint256 public constant AUCTION_START_MINUTE = 34;
 
     event BidPlaced(uint256 indexed tileId, address indexed bidder, uint256 amount, address token, string metadataCID);
     event AuctionSettled(uint256 indexed tileId, address indexed winner, uint256 amount, string metadataCID);

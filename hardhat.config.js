@@ -14,4 +14,19 @@ module.exports = {
       accounts: [process.env.PRIVATE_KEY],
     },
   },
+  etherscan: {
+    apiKey: {
+      'pepe-unchained-mainnet': 'empty'
+    },
+    customChains: [
+      {
+        network: "pepe-unchained-mainnet",
+        chainId: 97741,
+        urls: {
+          apiURL: "https://explorer-pepu-v2-mainnet-0.t.conduit.xyz/api",
+          browserURL: "https://explorer-pepu-v2-mainnet-0.t.conduit.xyz:443"
+        }
+      }
+    ]
+  }
 };
