@@ -25,10 +25,11 @@ A blockchain-powered digital tile grid where users can own, customize, and showc
 
 ### TileAuction Contract
 - **Network:** Pepe Unchained V2
-- **Address:** `0x60F7cD6513812a6ef7A871C4EBFFd3cCE1c2c2E0
+- **Address:** `0x790C2480cDd7e43Bd2757559bb261A5848bb6e33
 - **Auction Duration:** 5 minutes
 - **Winner Display Duration:** 5 minutes
-- **Auto-Auction Time:** 16:34 UTC (4:34 PM UTC) Tuesdays
+
+- **Auto-Auction Time:** 23:33 UTC (11:33 PM UTC) Wednesdays
 - **Payout Address:** `0x95C46439bD9559e10c4fF49bfF3e20720d93B66E`
 - **Purpose:** Manages automatic auctions for the center attention layer
 
@@ -60,10 +61,10 @@ The contract addresses are configured in:
 - **Duration:** 5 minutes auctions
 - **Winner Display:** 5 minutes after auction ends
 - **Bidding:** PENK or PEPU tokens
-- **Auto-Schedule:** 16:34 UTC (4:34 PM UTC) Tuesdays
+- **Auto-Schedule:** 17:16 UTC (5:16 PM UTC) Tuesdays
 
 ### Automatic Auction Flow
-1. **Auto-Start** - Auction starts automatically at 16:34 UTC (4:34 PM UTC) (Tuesdays)
+1. **Auto-Start** - Auction starts automatically at 23:33 UTC (11:33 PM UTC) (Wednesdays)
 2. **Bidding Period** - 5 minutes of active bidding
 3. **Auction Ends** - Highest bidder wins, winner display begins
 4. **Winner Display** - Winner's project shown for 5 minutes
@@ -144,7 +145,7 @@ npm run dev
 
 ### Auction Features
 - **5-minute Duration** - Fast-paced bidding with winner display
-- **Automatic Scheduling** - Auctions at 16:34 UTC (4:34 PM UTC) every Tuesday
+- **Automatic Scheduling** - Auctions at 23:33 UTC (11:33 PM UTC) every Wednesday
 - **Winner Display Period** - 5 minutes to showcase winner
 - **Dual Token Support** - PENK and PEPU bidding
 - **Automatic Refunds** - Losing bidders get refunds
@@ -169,4 +170,6 @@ npm run dev
 ## License
 
 MIT License - See LICENSE file for details.
+
+[Verified TileAuction Contract on Block Explorer](https://explorer-pepu-v2-mainnet-0.t.conduit.xyz:443/address/0x3B4Be35688BF620d8c808678D5CF22494FFD2c9B#code)
 

@@ -2,11 +2,14 @@ const { ethers } = require("hardhat");
 const fs = require("fs");
 
 async function main() {
+  // Hardcoded payout address
+  const payoutAddress = "0x95c46439bd9559e10c4ff49bff3e20720d93b66e";
   const TileAuction = await ethers.getContractFactory("TileAuction");
-  const contract = await TileAuction.deploy();
+  const contract = await TileAuction.deploy(payoutAddress);
   await contract.waitForDeployment();
   const address = await contract.getAddress();
   console.log("TileAuction deployed to:", address);
+  console.log("Payout address:", payoutAddress);
 
   // Update README.md with new address
   const readmePath = "README.md";

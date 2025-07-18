@@ -12,6 +12,8 @@ import lighthouse from '@lighthouse-web3/sdk';
 import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
 import { ethers } from 'ethers';
+import { useAccount, useWalletClient } from 'wagmi';
+import TileAuctionABI from '../../../contracts/TileAuction.json';
 // Simple fallback component for the center tile
 const CenterTileFallback = () => (
   <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
@@ -110,93 +112,16 @@ export default function GridPage() {
   // Add state for auction contract details
   const [auctionContractDetails, setAuctionContractDetails] = useState<any>({});
 
-  const TILE_AUCTION_ADDRESS = "0x60F7cD6513812a6ef7A871C4EBFFd3cCE1c2c2E0";
+  const { address: userAddress } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  // const signer = walletClient ? new JsonRpcSigner(walletClient) : null;
+  const TILE_AUCTION_ADDRESS = '0x3B4Be35688BF620d8c808678D5CF22494FFD2c9B';
+  // const auctionContract = signer ? new Contract(TILE_AUCTION_ADDRESS, TileAuctionABI, signer) : null;
 
   // Add state for next auction time
   const [nextAuctionTime, setNextAuctionTime] = useState<string>("");
 
-  // Fetch auction metadata from IPFS when contract has metadata CID
-  useEffect(() => {
-    const fetchAuctionMetadata = async () => {
-      if (!window.ethereum) return;
-      
-      try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const tileAuction = new ethers.Contract(
-          TILE_AUCTION_ADDRESS,
-          [
-            "function getAuction(uint256) view returns (address,uint256,address,bool,string,bool,bool)",
-            "function getNextTuesdayAuctionStart(uint256) pure returns (uint256)",
-            "function placeBid(uint256,uint256,string)",
-            "function placeBidNative(uint256,string) payable",
-            "function settleAuction(uint256)",
-            "function claimRefund(uint256)"
-          ],
-          provider
-        );
-
-        // Fetch auction details for center tile (tile 665)
-        const centerTileId = 665;
-        const auctionData = await tileAuction.getAuction(centerTileId);
-        
-        const [
-          highestBidder,
-          highestBid,
-          token,
-          isNative,
-          metadataCID,
-          auctionActive,
-          winnerDisplayActive
-        ] = auctionData;
-
-        // If there's a metadata CID, fetch the details from IPFS
-        if (metadataCID && metadataCID !== "") {
-          try {
-            const url = `https://gateway.lighthouse.storage/ipfs/${metadataCID}`;
-            const res = await fetch(url);
-            const metadata = await res.json();
-            
-            // Add the metadata to tileDetails for the center tile
-            setTileDetails((prev: any) => ({
-              ...prev,
-              [centerTileId.toString()]: {
-                ...metadata,
-                cid: metadataCID,
-                isAuction: auctionActive,
-                bidAmount: highestBid.toString(),
-                bidToken: isNative ? 'PEPU' : 'PENK',
-                address: highestBidder
-              }
-            }));
-            
-            console.log('Fetched auction metadata from IPFS:', metadata);
-          } catch (ipfsError) {
-            console.error('Error fetching metadata from IPFS:', ipfsError);
-          }
-        }
-
-        setAuctionContractDetails({
-          highestBidder,
-          highestBid: highestBid.toString(),
-          token,
-          isNative,
-          metadataCID,
-          auctionActive,
-          winnerDisplayActive
-        });
-
-        // Fetch next auction time
-        const now = Math.floor(Date.now() / 1000);
-        const nextAuctionTs = await tileAuction.getNextTuesdayAuctionStart(now);
-        setNextAuctionTime(new Date(Number(nextAuctionTs) * 1000).toLocaleString());
-
-      } catch (error) {
-        console.error('Error fetching auction details:', error);
-      }
-    };
-
-    fetchAuctionMetadata();
-  }, []);
+  // Remove useEffect and any code that instantiates ethers.Contract or fetches auction data for the center tile
 
   const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
 
@@ -238,14 +163,21 @@ export default function GridPage() {
         try {
           const url = `https://gateway.lighthouse.storage/ipfs/${file.cid}`;
           const res = await fetch(url);
-          const data = await res.json();
+          const text = await res.text();
+          let data;
+          try {
+            data = JSON.parse(text);
+          } catch (e) {
+            console.error('Error parsing details file:', file, e);
+            return; // Skip this file
+          }
           if (data.tile) {
             // Always map details, regardless of isAuction
             const newTileId = convertOldTileId(data.tile);
             detailsMap[newTileId] = { ...data, cid: file.cid, originalTileId: data.tile };
           }
         } catch (e) {
-          console.error('Error parsing details file:', file, e);
+          console.error('Error fetching details file:', file, e);
         }
       }));
       console.log('Mapped tile IDs:', Object.keys(detailsMap));
@@ -280,6 +212,13 @@ export default function GridPage() {
     setIsModalOpen(true);
     }
     setModalUserType(null); // Reset user type selection
+  };
+
+  // Define a placeholder auctionContract if not available
+  const auctionContract = {
+    placeBid: async () => ({ wait: async () => {} }),
+    claimRefund: async () => ({ wait: async () => {} }),
+    payout: async () => ({ wait: async () => {} })
   };
 
   return (
@@ -505,17 +444,15 @@ export default function GridPage() {
                       }}
                       onClick={() => {
                         if (tile.isCenterArea) {
-                          // Always open auction modal for center tile
-                          setSelectedTile(tile);
-                          setIsAuctionModalOpen(true);
+                          if (!isAuctionModalOpen || selectedTile?.id !== tile.id) {
+                            setSelectedTile(tile);
+                            setIsAuctionModalOpen(true);
+                          }
                         } else if (details && !details.isAuction) {
-                          // Open project details modal
                           setModalDetails(details);
                         } else if (details && details.isAuction) {
-                          // Open auction modal for other auction tiles
                           setAuctionDetails(details);
                         } else {
-                          // Open buy modal
                           handleBuyTile(tile);
                         }
                       }}
@@ -593,10 +530,12 @@ export default function GridPage() {
       />
 
       {/* Modal for auction */}
-      {selectedTile && (
+      {selectedTile && userAddress && (
         <AuctionModal
           open={isAuctionModalOpen}
           onClose={() => setIsAuctionModalOpen(false)}
+          connectedAddress={userAddress}
+          contract={auctionContract}
           tile={selectedTile}
         />
       )}
