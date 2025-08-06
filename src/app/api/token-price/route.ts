@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PENK_ADDRESS } from '../../../supportedTokens';
+import { SPRFD_ADDRESS } from '../../../supportedTokens';
 
 export async function GET(req: NextRequest) {
   try {
-    // Only fetch and return prices for PEPU (native) and PENK
+    // Only fetch and return prices for PEPU (native) and SPRFD
     // For PEPU, use https://api.geckoterminal.com/api/v2/networks/eth/pools/0xb1b10b05aa043dd8d471d4da999782bc694993e3ecbe8e7319892b261b412ed5
-    // For PENK, use its current pool
+    // For SPRFD, use its current pool
     const pepuRes = await fetch('https://api.geckoterminal.com/api/v2/networks/eth/pools/0xb1b10b05aa043dd8d471d4da999782bc694993e3ecbe8e7319892b261b412ed5');
-    const penkRes = await fetch('https://api.geckoterminal.com/api/v2/networks/pepe-unchained/pools/0x71942200c579319c89c357b55a9d5c0e0ad2403e');
+    const sprfdRes = await fetch('https://api.geckoterminal.com/api/v2/networks/pepe-unchained/pools/0x71942200c579319c89c357b55a9d5c0e0ad2403e');
 
     let pepuTokensFor7USD = null;
-    let penkTokensFor7USD = null;
+    let sprfdTokensFor7USD = null;
 
     if (pepuRes.ok) {
       const data = await pepuRes.json();
@@ -19,18 +19,18 @@ export async function GET(req: NextRequest) {
         pepuTokensFor7USD = 7 / parseFloat(price);
     }
     }
-    if (penkRes.ok) {
-      const data = await penkRes.json();
+    if (sprfdRes.ok) {
+      const data = await sprfdRes.json();
     const price = data?.data?.attributes?.base_token_price_usd || null;
       if (price) {
-        penkTokensFor7USD = 7 / parseFloat(price);
+        sprfdTokensFor7USD = 7 / parseFloat(price);
       }
     }
 
     // Build mapping
     const tokenAmounts = {
       PEPU: pepuTokensFor7USD,
-      [PENK_ADDRESS]: penkTokensFor7USD
+      [SPRFD_ADDRESS]: sprfdTokensFor7USD
     };
     return NextResponse.json(tokenAmounts);
   } catch (e) {

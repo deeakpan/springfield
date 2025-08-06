@@ -37,50 +37,6 @@ const FeatureCard = ({ icon: Icon, title, description, color, delay, gradient }:
   </motion.div>
 );
 
-// Special Feature Card for the middle tile auction
-const SpecialFeatureCard = ({ delay }: any) => (
-  <motion.div
-    className="p-8 rounded-lg border-2 border-black bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg hover:shadow-xl transition-all duration-300 col-span-full lg:col-span-2"
-    whileHover={{ scale: 1.02, y: -5 }}
-    initial={{ opacity: 0, y: 20 }}
-    whileInView={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.6, delay }}
-    viewport={{ once: true }}
-  >
-    <div className="flex items-center justify-between mb-6">
-      <div className="w-16 h-16 rounded-md bg-red-500 border-2 border-black flex items-center justify-center">
-        <Star className="w-8 h-8 text-black" />
-      </div>
-      <div className="text-right">
-        <div className="bg-red-500 text-black px-3 py-1 rounded-md font-bold text-sm border-2 border-black">
-          AUCTION
-        </div>
-      </div>
-    </div>
-    <h3 className="text-2xl font-bold mb-3 text-black">Center Area Auction</h3>
-    <p className="text-gray-800 leading-relaxed mb-4">
-      The center area (tiles 17-23, rows 8-12) is Springfield's premium auction spot! This is a 7x5 block (7 columns by 5 rows) at the heart of the grid. Highest bidder gets 48 hours of maximum visibility. 
-      Perfect for project launches, announcements, or maximum exposure. Bidding handled automatically by smart contracts
-    </p>
-    <div className="grid grid-cols-2 gap-4 text-sm">
-      <div className="bg-white/80 p-3 rounded border border-black">
-        <div className="font-bold text-black">Current Bid</div>
-        <div className="text-green-600 font-bold">1,250 $SPRFD</div>
-      </div>
-      <div className="bg-white/80 p-3 rounded border border-black">
-        <div className="font-bold text-black">Time Left</div>
-        <div className="text-red-600 font-bold">12h 34m</div>
-      </div>
-    </div>
-    <div className="mt-4 p-3 bg-white/80 rounded border border-black">
-      <div className="text-sm text-gray-700">
-        <span className="font-bold text-black">How it works:</span> Place your bid in $SPRFD. Highest bidder wins the 48-hour rental period. 
-        Smart contract automatically assigns the center area to the winning wallet.
-      </div>
-    </div>
-  </motion.div>
-);
-
 // Stats Component
 const StatCard = ({ number, label, icon: Icon, delay }: any) => (
   <motion.div
@@ -321,142 +277,6 @@ export default function Home() {
           </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-            <motion.div
-              className="bg-white rounded-lg p-6 border-2 border-black text-center"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              viewport={{ once: true }}
-            >
-              <div className="w-16 h-16 rounded-md bg-green-500 border-2 border-black flex items-center justify-center mx-auto mb-4">
-                <Coins className="w-8 h-8 text-black" />
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-2">Dual Payments</h3>
-              <p className="text-gray-700">Buy tiles with $SPRFD or $PEPU tokens</p>
-            </motion.div>
-
-            <motion.div
-              className="bg-white rounded-lg p-6 border-2 border-black text-center"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              viewport={{ once: true }}
-            >
-              <div className="w-16 h-16 rounded-md bg-red-500 border-2 border-black flex items-center justify-center mx-auto mb-4">
-                <Zap className="w-8 h-8 text-black" />
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-2">Token Burning</h3>
-              <p className="text-gray-700">Staking burns tokens, creating price spikes</p>
-            </motion.div>
-
-            <motion.div
-              className="bg-white rounded-lg p-6 border-2 border-black text-center"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              viewport={{ once: true }}
-            >
-              <div className="w-16 h-16 rounded-md bg-blue-500 border-2 border-black flex items-center justify-center mx-auto mb-4">
-                <Star className="w-8 h-8 text-black" />
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-2">Staking Rewards</h3>
-              <p className="text-gray-700">Earn rewards and participate in governance</p>
-            </motion.div>
-
-            <motion.div
-              className="bg-white rounded-lg p-6 border-2 border-black text-center"
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.4 }}
-              viewport={{ once: true }}
-            >
-              <div className="w-16 h-16 rounded-md bg-purple-500 border-2 border-black flex items-center justify-center mx-auto mb-4">
-                <Users className="w-8 h-8 text-black" />
-              </div>
-              <h3 className="text-2xl font-bold text-black mb-2">Community DAO</h3>
-              <p className="text-gray-700">Vote on features and shape Springfield's future</p>
-            </motion.div>
-          </div>
-
-          {/* Rental System Showcase */}
-          <motion.div
-            className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-lg p-8 border-2 border-black"
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.5 }}
-            viewport={{ once: true }}
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-              <div>
-                <h3 className="text-3xl font-bold text-black mb-4">Tile Rental System</h3>
-                <p className="text-gray-800 mb-6">
-                  Own multiple tiles? Rent them out to other projects and earn passive income! 
-                  The rental marketplace allows projects to get visibility while tile owners earn $SPRFD.
-                </p>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full border border-black"></div>
-                    <span className="text-black font-semibold">Set your own rental prices</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full border border-black"></div>
-                    <span className="text-black font-semibold">48-hour minimum rental periods</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-green-500 rounded-full border border-black"></div>
-                    <span className="text-black font-semibold">Automatic payment in $SPRFD</span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-3 h-3 bg-red-500 rounded-full border border-black"></div>
-                    <span className="text-black font-semibold">Center tiles auctioned by Springfield</span>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white rounded-lg p-6 border-2 border-black">
-                <h4 className="text-xl font-bold text-black mb-4">Center Tile Auctions</h4>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Center Area (tiles 17-23, rows 8-12)</span>
-                    <span className="font-bold text-red-600">Auction Only</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Rental Period</span>
-                    <span className="font-bold text-black">48 Hours</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Current Bid</span>
-                    <span className="font-bold text-green-600">1,250 $SPRFD</span>
-                  </div>
-                  <div className="flex justify-between items-center border-t pt-3">
-                    <span className="text-gray-700 font-bold">User-Owned Tiles</span>
-                    <span className="font-bold text-blue-600">Set Your Price</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section id="features" className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-900">
-        <div className="max-w-7xl mx-auto">
-          <motion.div
-            className="text-center mb-16"
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              Why Choose <span className="text-yellow-300">Springfield</span>?
-            </h2>
-            <p className="text-xl text-white max-w-3xl mx-auto">
-              Experience the future of digital ownership with our innovative platform
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             <FeatureCard
               icon={Coins}
               title="Dual Token Payments"
@@ -505,9 +325,6 @@ export default function Home() {
               gradient="bg-pink-500"
               delay={0.6}
             />
-            
-            {/* Special Center Tile Auction Feature */}
-            <SpecialFeatureCard delay={0.7} />
             
             <FeatureCard
               icon={Star}

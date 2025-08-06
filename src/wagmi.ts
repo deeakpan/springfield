@@ -3,21 +3,21 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import type { Chain } from 'wagmi/chains';
 
 export const pepeUnchainedV2: Chain = {
-  id: 97741,
-  name: 'Pepe Unchained V2',
+  id: 97740,
+  name: 'Pepe Unchained V2 Testnet',
   nativeCurrency: {
     name: 'PEPU',
     symbol: 'PEPU',
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://rpc-pepu-v2-mainnet-0.t.conduit.xyz'] },
-    public: { http: ['https://rpc-pepu-v2-mainnet-0.t.conduit.xyz'] },
+    default: { http: ['https://rpc-pepu-v2-testnet-vn4qxxp9og.t.conduit.xyz'] },
+    public: { http: ['https://rpc-pepu-v2-testnet-vn4qxxp9og.t.conduit.xyz'] },
   },
   blockExplorers: {
-    default: { name: 'PepeScan', url: 'https://pepuscan.com/' },
+    default: { name: 'PepeScan Testnet', url: 'https://testnet.pepuscan.com/' },
   },
-  testnet: false,
+  testnet: true,
 };
 
 export const config = getDefaultConfig({

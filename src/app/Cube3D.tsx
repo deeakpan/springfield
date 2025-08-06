@@ -1,85 +1,63 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
+import React from 'react';
+import { motion } from 'framer-motion';
 
 interface Cube3DProps {
   isHovered: boolean;
-  auctionDetails?: any; // For auction tiles
 }
 
-const Cube3DComponent = ({ isHovered, auctionDetails }: Cube3DProps) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [hovered, setHovered] = useState(false);
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      // Auto-rotation when not hovered
-      if (!hovered) {
-        meshRef.current.rotation.y += 0.01;
-        meshRef.current.rotation.x += 0.005;
-      }
-    }
-  });
-
+const Cube3DComponent = ({ isHovered }: Cube3DProps) => {
   return (
-    <>
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} intensity={1} />
-      <pointLight position={[-10, -10, -10]} intensity={0.5} />
+    <motion.div
+      className="relative w-full h-full"
+      animate={{
+        rotateX: isHovered ? 360 : 0,
+        rotateY: isHovered ? 360 : 0,
+      }}
+      transition={{
+        duration: 2,
+        ease: "easeInOut",
+        repeat: isHovered ? Infinity : 0,
+      }}
+    >
+      {/* Front face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg shadow-lg transform rotate-0">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
       
-      <mesh
-        ref={meshRef}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-        scale={hovered ? 1.1 : 1}
-      >
-        <boxGeometry args={[2, 2, 2]} />
-        <meshStandardMaterial 
-          color="#fde047"
-          metalness={0.1}
-          roughness={0.2}
-        />
-      </mesh>
+      {/* Back face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg shadow-lg transform rotate-180">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
       
-      {/* QR Code texture on front face */}
-      <mesh position={[0, 0, 1.01]}>
-        <planeGeometry args={[1.8, 1.8]} />
-        <meshBasicMaterial color="#ffffff" />
-      </mesh>
+      {/* Left face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg shadow-lg transform rotate-y-90">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
       
-      {/* Auction QR Code - shows project primary link after auction ends */}
-      {auctionDetails && (
-        <mesh position={[0, 0, 1.02]}>
-          <planeGeometry args={[1.6, 1.6]} />
-          <meshBasicMaterial color="#fde047" />
-        </mesh>
-      )}
+      {/* Right face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-lg transform -rotate-y-90">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
       
-      <OrbitControls 
-        enablePan={false}
-        enableZoom={false}
-        enableRotate={hovered}
-        autoRotate={!hovered}
-        autoRotateSpeed={1}
-        maxPolarAngle={Math.PI}
-        minPolarAngle={0}
-      />
-    </>
+      {/* Top face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg shadow-lg transform -rotate-x-90">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
+      
+      {/* Bottom face */}
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-lg shadow-lg transform rotate-x-90">
+        <div className="absolute inset-0 bg-black/20 rounded-lg"></div>
+      </div>
+    </motion.div>
   );
 };
 
-const Cube3D = ({ isHovered, auctionDetails }: Cube3DProps) => {
+const Cube3D = ({ isHovered }: Cube3DProps) => {
   return (
-    <div className="w-full h-full">
-      <Canvas
-        camera={{ position: [0, 0, 5], fov: 50 }}
-        style={{ width: '100%', height: '100%' }}
-      >
-        <Cube3DComponent isHovered={isHovered} auctionDetails={auctionDetails} />
-      </Canvas>
+    <div className="w-16 h-16 sm:w-20 sm:h-20 perspective-1000">
+      <Cube3DComponent isHovered={isHovered} />
     </div>
   );
 };

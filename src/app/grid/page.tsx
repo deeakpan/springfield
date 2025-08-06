@@ -6,14 +6,11 @@ import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
-import AuctionModal from '../components/AuctionModal';
-import AuctionStatus from '../components/AuctionStatus';
-import lighthouse from '@lighthouse-web3/sdk';
 import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
 import { ethers } from 'ethers';
 import { useAccount, useWalletClient } from 'wagmi';
-import TileAuctionABI from '../../../contracts/TileAuction.json';
+
 // Simple fallback component for the center tile
 const CenterTileFallback = () => (
   <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
@@ -107,23 +104,12 @@ export default function GridPage() {
   const [hoveredTile, setHoveredTile] = useState<Tile | null>(null);
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any>(null);
-  const [auctionDetails, setAuctionDetails] = useState<any>(null);
-
-  // Add state for auction contract details
-  const [auctionContractDetails, setAuctionContractDetails] = useState<any>({});
 
   const { address: userAddress } = useAccount();
   const { data: walletClient } = useWalletClient();
   // const signer = walletClient ? new JsonRpcSigner(walletClient) : null;
   const TILE_AUCTION_ADDRESS = '0x3B4Be35688BF620d8c808678D5CF22494FFD2c9B';
   // const auctionContract = signer ? new Contract(TILE_AUCTION_ADDRESS, TileAuctionABI, signer) : null;
-
-  // Add state for next auction time
-  const [nextAuctionTime, setNextAuctionTime] = useState<string>("");
-
-  // Remove useEffect and any code that instantiates ethers.Contract or fetches auction data for the center tile
-
-  const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
 
   // Convert old coordinate format to new numeric ID
   const convertOldTileId = (oldId: string): string => {
@@ -139,60 +125,36 @@ export default function GridPage() {
     return oldId;
   };
 
-  // Fetch all details files from Lighthouse and build tileId -> details mapping
+  // Fetch all details files from API route and build tileId -> details mapping
   useEffect(() => {
-    if (!apiKey) return;
     let isMounted = true;
-    const fetchAllUploads = async () => {
-      let lastKey = null;
-      let allFiles: any[] = [];
-      while (true) {
-        const resp = await lighthouse.getUploads(apiKey, lastKey);
-        console.log('Lighthouse getUploads raw response:', resp);
-        const files = resp?.data?.fileList || [];
-        console.log('Lighthouse file names:', files.map(f => ({ name: f.fileName, mime: f.mimeType })));
-        allFiles = allFiles.concat(files);
-        if (files.length === 0 || files.length < 2000) break;
-        lastKey = files[files.length - 1].id;
-      }
-      // Only process JSON details files or octet-streams (raw details blobs)
-      const jsonFiles = allFiles.filter(f => f.fileName.endsWith('.json') || f.mimeType === 'application/octet-stream');
-      console.log('Lighthouse: Found', jsonFiles.length, 'details files');
-      const detailsMap: any = {};
-      await Promise.all(jsonFiles.map(async (file) => {
-        try {
-          const url = `https://gateway.lighthouse.storage/ipfs/${file.cid}`;
-          const res = await fetch(url);
-          const text = await res.text();
-          let data;
-          try {
-            data = JSON.parse(text);
-          } catch (e) {
-            console.error('Error parsing details file:', file, e);
-            return; // Skip this file
-          }
-          if (data.tile) {
-            // Always map details, regardless of isAuction
-            const newTileId = convertOldTileId(data.tile);
-            detailsMap[newTileId] = { ...data, cid: file.cid, originalTileId: data.tile };
-          }
-        } catch (e) {
-          console.error('Error fetching details file:', file, e);
+    const fetchTileDetails = async () => {
+      try {
+        const response = await fetch('/api/tile-details');
+        if (!response.ok) {
+          console.error('Failed to fetch tile details');
+          return;
         }
-      }));
-      console.log('Mapped tile IDs:', Object.keys(detailsMap));
-      if (isMounted) setTileDetails(detailsMap);
+        
+        const result = await response.json();
+        if (result.success && isMounted) {
+          setTileDetails(result.data);
+          console.log('Loaded tile details:', Object.keys(result.data));
+        }
+      } catch (error) {
+        console.error('Error fetching tile details:', error);
+      }
     };
-    fetchAllUploads();
+    
+    fetchTileDetails();
     return () => { isMounted = false; };
-  }, [apiKey]);
+  }, []);
 
   // Show all tiles
   const filteredTiles = tiles;
 
   // Add state for modal visibility and user type
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isAuctionModalOpen, setIsAuctionModalOpen] = useState(false);
   const [modalUserType, setModalUserType] = useState<'project' | 'user' | null>(null);
 
   // Add useState for connection status
@@ -206,19 +168,8 @@ export default function GridPage() {
   // Update handleBuyTile to open modal
   const handleBuyTile = (tile: Tile) => {
     setSelectedTile(tile);
-    if (tile.isCenterArea) {
-      setIsAuctionModalOpen(true);
-    } else {
     setIsModalOpen(true);
-    }
     setModalUserType(null); // Reset user type selection
-  };
-
-  // Define a placeholder auctionContract if not available
-  const auctionContract = {
-    placeBid: async () => ({ wait: async () => {} }),
-    claimRefund: async () => ({ wait: async () => {} }),
-    payout: async () => ({ wait: async () => {} })
   };
 
   return (
@@ -328,22 +279,22 @@ export default function GridPage() {
                 <div className="text-purple-300 text-xs sm:text-sm font-medium mb-1">Attention Layer</div>
                 <div className="text-lg sm:text-2xl font-semibold text-white">
                   {(() => {
-                    const contractDetails = auctionContractDetails;
-                    if (contractDetails.auctionActive) {
-                      return 'ACTIVE';
-                    } else {
-                      return 'WAITING';
-                    }
+                    // const contractDetails = auctionContractDetails;
+                    // if (contractDetails.auctionActive) {
+                    //   return 'ACTIVE';
+                    // } else {
+                      return 'No Auction';
+                    // }
                   })()}
                 </div>
                 <div className="text-purple-400/70 text-[10px] sm:text-xs mt-1">
                   {(() => {
-                    const contractDetails = auctionContractDetails;
-                    if (contractDetails.auctionActive) {
-                      return 'Auction Active';
-                    } else {
+                    // const contractDetails = auctionContractDetails;
+                    // if (contractDetails.auctionActive) {
+                    //   return 'Auction Active';
+                    // } else {
                       return 'No Auction';
-                    }
+                    // }
                   })()}
                 </div>
               </div>
@@ -390,24 +341,24 @@ export default function GridPage() {
                     // Optionally set a special color or border for purchased tiles
                   } else if (details && details.isAuction) {
                     // Use auction state for auction tiles
-                    const auctionState = auctionDetails || {};
-                    if (auctionState.state === 'active') {
-                      bgColor = '#fde047';
-                      tooltip = 'Auction active';
-                    } else if (auctionState.state === 'ended') {
-                      bgColor = '#22c55e';
-                      tooltip = 'Auction ended';
-                    }
+                    // const auctionState = auctionDetails || {};
+                    // if (auctionState.state === 'active') {
+                    //   bgColor = '#fde047';
+                    //   tooltip = 'Auction active';
+                    // } else if (auctionState.state === 'ended') {
+                    //   bgColor = '#22c55e';
+                    //   tooltip = 'Auction ended';
+                    // }
                   } else if (tile.isCenterArea) {
                     // Center tile auction state
-                    const contractDetails = auctionContractDetails;
-                    if (contractDetails.auctionActive) {
-                      bgColor = '#fde047';
-                      tooltip = 'Auction active';
-                    } else {
+                    // const contractDetails = auctionContractDetails;
+                    // if (contractDetails.auctionActive) {
+                    //   bgColor = '#fde047';
+                    //   tooltip = 'Auction active';
+                    // } else {
                       bgColor = '#E5E7EB';
                       tooltip = 'No auction';
-                    }
+                    // }
                   }
                   return (
                   <motion.div
@@ -444,14 +395,14 @@ export default function GridPage() {
                       }}
                       onClick={() => {
                         if (tile.isCenterArea) {
-                          if (!isAuctionModalOpen || selectedTile?.id !== tile.id) {
+                          if (!isModalOpen || selectedTile?.id !== tile.id) {
                             setSelectedTile(tile);
-                            setIsAuctionModalOpen(true);
+                            setIsModalOpen(true);
                           }
                         } else if (details && !details.isAuction) {
                           setModalDetails(details);
                         } else if (details && details.isAuction) {
-                          setAuctionDetails(details);
+                          // setAuctionDetails(details); // Removed auction state
                         } else {
                           handleBuyTile(tile);
                         }
@@ -492,12 +443,12 @@ export default function GridPage() {
                 <div className="text-xs text-gray-300">ID: {hoveredTile.id}</div>
                 {hoveredTile.isCenterArea ? (
                   (() => {
-                    const contractDetails = auctionContractDetails;
-                    if (contractDetails.auctionActive) {
-                      return <div className="text-green-400 font-bold text-base">✅ Auction Active</div>;
-                    } else {
+                    // const contractDetails = auctionContractDetails;
+                    // if (contractDetails.auctionActive) {
+                    //   return <div className="text-green-400 font-bold text-base">✅ Auction Active</div>;
+                    // } else {
                       return <div className="text-gray-400 font-bold text-base">⏳ No Auction</div>;
-                    }
+                    // }
                   })()
                 ) : (
                   (() => {
@@ -529,34 +480,11 @@ export default function GridPage() {
         tile={selectedTile || {}}
       />
 
-      {/* Modal for auction */}
-      {selectedTile && userAddress && (
-        <AuctionModal
-          open={isAuctionModalOpen}
-          onClose={() => setIsAuctionModalOpen(false)}
-          connectedAddress={userAddress}
-          contract={auctionContract}
-          tile={selectedTile}
-        />
-      )}
-
       {/* Modal for purchased tile details */}
       <TileDetailsModal open={!!modalDetails} onClose={() => setModalDetails(null)} details={modalDetails} />
       
       {/* Auction Status Component */}
-      {auctionDetails && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <AuctionStatus 
-            auctionDetails={auctionDetails}
-            auctionActive={auctionContractDetails.auctionActive}
-            nextAuctionTime={nextAuctionTime}
-            onAuctionEnd={() => {
-              // Handle auction end - update QR code to point to project primary link
-              console.log('Auction ended, updating QR code...');
-            }}
-          />
-        </div>
-      )}
+      {/* Removed AuctionStatus component */}
     </div>
   );
 } 

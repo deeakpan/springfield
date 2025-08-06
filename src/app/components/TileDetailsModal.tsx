@@ -76,9 +76,6 @@ function renderSocialLinks(socials: any) {
 const TileDetailsModal: React.FC<TileDetailsModalProps> = ({ open, onClose, details }) => {
   if (!open || !details) return null;
   
-  const isAuction = details.isAuction;
-  const auctionEnded = isAuction && new Date(details.auctionEndTime) < new Date();
-  
   return (
     <div
       className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
@@ -94,30 +91,9 @@ const TileDetailsModal: React.FC<TileDetailsModalProps> = ({ open, onClose, deta
         <img src={`https://gateway.lighthouse.storage/ipfs/${details.imageCID}`} alt="Tile" className="w-32 h-32 object-contain rounded mb-3 border border-black bg-white" />
         <div className="text-lg font-bold mb-1 text-green-700 text-center break-words w-full">{details.name}</div>
         
-        {isAuction ? (
-          <>
-            <div className="mb-1 text-center w-full flex flex-wrap justify-center">
-              <span className="font-semibold text-gray-700">Status:</span> 
-              <span className={`font-semibold ${auctionEnded ? 'text-green-600' : 'text-yellow-600'}`}>
-                {auctionEnded ? 'Auction Ended' : 'Auction Active'}
-              </span>
-            </div>
-            <div className="mb-1 text-center w-full">
-              <span className="font-semibold text-gray-700">Bid:</span> 
-              <span className="font-bold text-green-600"> {details.bidAmount} {details.bidToken}</span>
-            </div>
-            {auctionEnded && (
-              <div className="mb-1 text-center w-full">
-                <span className="font-semibold text-gray-700">Winner:</span> 
-                <span className="font-bold text-green-600"> {details.name}</span>
-              </div>
-            )}
-          </>
-        ) : (
         <div className="mb-1 text-center w-full flex flex-wrap justify-center">
           <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
         </div>
-        )}
         
         {details.socials && (
           <div className="mb-1 w-full text-center">

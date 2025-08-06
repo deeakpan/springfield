@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, ShoppingCart, CheckCircle2 } from 'lucide-react';
 import { TOKENS } from '../../supportedTokens';
@@ -29,14 +30,15 @@ const springfieldBorder = 'border-4 border-black';
 const springfieldFont = 'font-bold';
 const springfieldButton = 'rounded-md px-6 py-2 text-lg font-bold border-2 border-black transition-all duration-200';
 
-function validateSocialLinks(userType: UserType, form: typeof initialFormState, userSocialPlatform?: 'telegram' | 'discord' | 'x', userSocialValue?: string, projectPrimaryPlatform?: 'telegram' | 'discord' | 'x', projectPrimaryValue?: string, projectAdditionalLinks?: string[], imageFile?: File | null) {
+function validateSocialLinks(userType: UserType, form: typeof initialFormState, userSocialPlatform?: 'telegram' | 'discord' | 'x', userSocialValue?: string, projectPrimaryPlatform?: 'telegram' | 'discord' | 'x', projectPrimaryValue?: string, projectAdditionalLinks?: string[], imageFile?: FileList | null) {
   const errors: Record<string, string> = {};
   if (!form.name.trim()) errors.name = 'Name is required.';
   // Image validation
-  if (imageFile) {
-    if (!imageFile.type.startsWith('image/')) {
+  const file = imageFile && imageFile[0];
+  if (file) {
+    if (!file.type.startsWith('image/')) {
       errors.imageFile = 'File must be an image.';
-    } else if (imageFile.size > 600 * 1024) {
+    } else if (file.size > 600 * 1024) {
       errors.imageFile = 'Image must be less than 600KB.';
     }
   }
@@ -101,13 +103,21 @@ function validateSocialLinks(userType: UserType, form: typeof initialFormState, 
   return errors;
 }
 
+// Define a consistent token type
+interface TokenType {
+  address?: string;
+  name: string;
+  isNative?: boolean;
+  logo: string;
+}
+
 export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   let content;
   const [step, setStep] = useState<Step>('choose');
   const [userType, setUserType] = useState<UserType>(null);
   const [form, setForm] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [price, setPrice] = useState<string>('');
+  const [price, setPrice] = useState<string>('1'); // Fixed price for PEPU
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -117,21 +127,31 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const [projectPrimaryPlatform, setProjectPrimaryPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
   const [projectPrimaryValue, setProjectPrimaryValue] = useState('');
   const [projectAdditionalLinks, setProjectAdditionalLinks] = useState(['', '']);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  // Change imageFile state to FileList | null
+  const [imageFile, setImageFile] = useState<FileList | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   // Remove tokenName state and API usage
   const [tokenName, setTokenName] = useState<string>('');
   const [sprfdBalance, setSprfdBalance] = useState<string>('');
-  const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
+  const SPRFD_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_SPRFD_ADDRESS;
+  // Use consistent type for selectedToken
+  const [selectedToken, setSelectedToken] = useState<TokenType>({
+    ...TOKENS[0],
+    address: TOKENS[0].isNative ? undefined : (SPRFD_TOKEN_ADDRESS || TOKENS[0].address),
+  });
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showFinalSuccess, setShowFinalSuccess] = useState(false);
 
-  const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
   const DEPLOYER_ADDRESS = "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E";
-  const TILE_PURCHASE_ADDRESS = "0x346a672059a1a81105660B6B3a2Fc98b607B4ce7";
+  // Use the Marketplace contract address from environment variable
+  const TILE_PURCHASE_ADDRESS = process.env.NEXT_PUBLIC_TILE_CONTRACT;
+  
+  if (!TILE_PURCHASE_ADDRESS) {
+    console.error("NEXT_PUBLIC_TILE_CONTRACT environment variable not set!");
+  }
 
   // Reset modal state only when opened
   useEffect(() => {
@@ -172,22 +192,18 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
-  // Fetch price from API for selected token
-  useEffect(() => {
-    if (step === 'price' && open) {
-      setLoadingPrice(true);
-      setPrice('');
-      const priceKey = selectedToken.address ? selectedToken.address : 'PEPU';
-      fetch('/api/token-price')
-        .then(res => res.json())
-        .then(data => {
-          const priceValue = data[priceKey];
-          setPrice(priceValue && !isNaN(priceValue) ? priceValue : '');
-        })
-        .catch(() => setPrice(''))
-        .finally(() => setLoadingPrice(false));
-    }
-  }, [step, open, selectedToken]);
+      // Set fixed price based on selected token
+    useEffect(() => {
+      if (step === 'price' && open) {
+        setLoadingPrice(true);
+        if (selectedToken.isNative) {
+          setPrice('1'); // 1 PEPU for native token
+        } else {
+          setPrice('10000'); // 10000 SPRFD for ERC20 token
+        }
+        setLoadingPrice(false);
+      }
+    }, [step, open, selectedToken]);
 
   // Fetch selected token wallet balance in price step
   useEffect(() => {
@@ -203,34 +219,21 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           } else {
             if (!selectedToken.address) throw new Error('No address for ERC20 token');
             try {
-              // For PENK: call everything on the implementation contract
-              const implementationContract = new ethers.Contract(
-                "0xE8a859a25249c8A5b9F44059937145FC67d65eD4", // PENK implementation
+              // For SPRFD: use the token contract directly
+              const tokenContract = new ethers.Contract(
+                selectedToken.address,
                 ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"],
                 provider
               );
               
               const [balance, decimals] = await Promise.all([
-                implementationContract.balanceOf(userAddress),
-                implementationContract.decimals()
+                tokenContract.balanceOf(userAddress),
+                tokenContract.decimals()
               ]);
               
-              // Validate the balance response
-              if (!balance || balance.toString() === "0" || balance.toString().includes("-")) {
-                console.log("Invalid balance from implementation, trying proxy...");
-                // Try proxy as fallback
-                const proxyContract = new ethers.Contract(
-                  selectedToken.address,
-                  ["function balanceOf(address owner) view returns (uint256)"],
-                  provider
-                );
-                const proxyBalance = await proxyContract.balanceOf(userAddress);
-                setSprfdBalance(ethers.formatUnits(proxyBalance, 18)); // Hardcode decimals
-              } else {
-                setSprfdBalance(ethers.formatUnits(balance, decimals));
-              }
+              setSprfdBalance(ethers.formatUnits(balance, decimals));
             } catch (err) {
-              console.error("Failed to fetch PENK balance:", err, {
+              console.error("Failed to fetch SPRFD balance:", err, {
                 address: selectedToken.address,
                 userAddress
               });
@@ -293,110 +296,150 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   const handleBuy = async () => {
     setErrorMsg(null);
     setSuccessMsg(null);
-    if (!imageFile) {
+    if (!imageFile || imageFile.length === 0) {
       setErrorMsg("No image selected!");
       return;
     }
-    if (!apiKey) {
-      setErrorMsg("Lighthouse API key missing!");
+    const file = imageFile[0];
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg("File must be an image.");
+      return;
+    }
+    if (file.size > 600 * 1024) {
+      setErrorMsg("Image must be less than 600KB.");
+      return;
+    }
+    if (!tile?.id) {
+      setErrorMsg("Invalid tile ID!");
+      return;
+    }
+    const tileId = parseInt(tile.id);
+    if (isNaN(tileId) || tileId < 0) {
+      setErrorMsg("Invalid tile ID format!");
+      return;
+    }
+    if (!TILE_PURCHASE_ADDRESS) {
+      setErrorMsg("Contract address not configured!");
       return;
     }
     setUploading(true);
     try {
-      // 1. Send token transfer
-      if (!window.ethereum) throw new Error("Wallet not found");
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
-      const userAddress = await signer.getAddress();
-      let erc20;
-      let decimals;
-      let amount;
-      let balance;
-
-      if (selectedToken.isNative) {
-        // Native token transfer via contract
-        const nativeAmount = ethers.parseUnits(String(price), 18); // Assuming 18 decimals for native
-        balance = await provider.getBalance(userAddress);
-        if (balance < nativeAmount) {
-          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
-          setUploading(false);
-          return;
-        }
-        // Call contract's buyTileNative function
-        const tilePurchase = new ethers.Contract(
-          TILE_PURCHASE_ADDRESS,
-          ["function buyTileNative(uint256 tileId) external payable"],
-          signer
-        );
-        const tx = await tilePurchase.buyTileNative(parseInt(tile?.id) || 0, { value: nativeAmount });
-        await tx.wait();
-      } else {
-        // ERC20 token transfer via contract
-        if (!selectedToken.address) throw new Error('No address for ERC20 token');
-        erc20 = new ethers.Contract(
-          selectedToken.address,
-          [
-            "function transfer(address to, uint256 amount) returns (bool)",
-            "function decimals() view returns (uint8)",
-            "function balanceOf(address owner) view returns (uint256)",
-            "function approve(address spender, uint256 amount) returns (bool)"
-          ],
-          signer
-        );
-        decimals = await erc20.decimals();
-        amount = ethers.parseUnits(String(price), decimals);
-        balance = await erc20.balanceOf(userAddress);
-        console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
-        if (balance < amount) {
-          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
-          setUploading(false);
-          return;
-        }
-        // First approve the contract to spend tokens
-        const approveTx = await erc20.approve(TILE_PURCHASE_ADDRESS, amount);
-        await approveTx.wait();
-        // Then call contract's buyTile function
-        const tilePurchase = new ethers.Contract(
-          TILE_PURCHASE_ADDRESS,
-          ["function buyTile(address token, uint256 amount, uint256 tileId) external"],
-          signer
-        );
-        const tx = await tilePurchase.buyTile(selectedToken.address, amount, parseInt(tile?.id) || 0);
-        await tx.wait();
+      // 1. Upload image to Lighthouse directly from browser
+      const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
+      if (!apiKey) {
+        setErrorMsg("Lighthouse API key not set");
+        setUploading(false);
+        return;
       }
-
-      // 2. Upload image
-      const imageRes = await lighthouse.upload([imageFile], apiKey);
+      const imageRes = await lighthouse.upload(imageFile as any, apiKey);
       const imageCID = imageRes.data.Hash;
-      // 3. Prepare details JSON
-      const details = {
+      console.log("Image CID:", imageCID);
+
+      // 2. Prepare metadata JSON with the image CID
+      const metadata = {
         tile: tile?.id || null,
         name: form.name,
         socials: userType === 'user'
           ? { [userSocialPlatform]: userSocialValue }
           : {
               primary: { [projectPrimaryPlatform]: projectPrimaryValue },
-              additional: projectAdditionalLinks,
+              additional: projectAdditionalLinks.filter(Boolean),
             },
-        website: form.website,
+        website: form.website || null,
         address: connectedAddress,
         imageCID,
+        timestamp: Date.now(),
+        userType: userType,
       };
-      const detailsText = JSON.stringify(details, null, 2);
-      // 4. Upload details JSON
-      const textRes = await lighthouse.uploadText(detailsText, apiKey, form.name || "details");
-      const textCID = textRes.data.Hash;
-      // 5. Log CIDs
-      console.log("Image CID:", imageCID);
-      console.log("Details CID:", textCID);
-      // 6. Success: clear form, close modal, show message
-      setSuccessMsg("Upload successful!");
+      const metadataText = JSON.stringify(metadata, null, 2);
+      console.log("Metadata JSON:", metadataText);
+
+      // 3. Upload metadata JSON to Lighthouse
+      const metadataRes = await lighthouse.uploadText(metadataText, apiKey, `tile-${tile?.id}-metadata`);
+      const metadataCID = metadataRes.data.Hash;
+      const metadataUri = `ipfs://${metadataCID}`;
+      console.log("Metadata CID:", metadataCID);
+      console.log("Metadata URI:", metadataUri);
+
+      // 4. Now handle token transfer and contract call
+      if (!window.ethereum) throw new Error("Wallet not found");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+
+      if (selectedToken.isNative) {
+        // Native token transfer via Marketplace contract
+        const nativeAmount = ethers.parseUnits(String(price), 18);
+        const balance = await provider.getBalance(userAddress);
+        if (balance < nativeAmount) {
+          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
+          setUploading(false);
+          return;
+        }
+        
+        // Call Marketplace contract's buyTileWithNative function
+        const tileMarketplace = new ethers.Contract(
+          TILE_PURCHASE_ADDRESS!,
+          ["function buyTileWithNative(uint256 tileId, string memory metadataUri) external payable"],
+          signer
+        );
+        const tx = await tileMarketplace.buyTileWithNative(
+          tileId, 
+          metadataUri,
+          { value: nativeAmount }
+        );
+        await tx.wait();
+      } else {
+        // ERC20 token transfer via Marketplace contract
+        if (!selectedToken.address) throw new Error('No address for ERC20 token');
+        const erc20 = new ethers.Contract(
+          selectedToken.address,
+          [
+            "function decimals() view returns (uint8)",
+            "function balanceOf(address owner) view returns (uint256)",
+            "function approve(address spender, uint256 amount) returns (bool)"
+          ],
+          signer
+        );
+        
+        const decimals = await erc20.decimals();
+        const amount = ethers.parseUnits(String(price), decimals);
+        const balance = await erc20.balanceOf(userAddress);
+        
+        console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
+        if (balance < amount) {
+          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
+          setUploading(false);
+          return;
+        }
+        
+        // First approve the Marketplace contract to spend tokens
+        const approveTx = await erc20.approve(TILE_PURCHASE_ADDRESS!, amount);
+        await approveTx.wait();
+        
+        // Then call Marketplace contract's buyTile function
+        const tileMarketplace = new ethers.Contract(
+          TILE_PURCHASE_ADDRESS!,
+          ["function buyTile(uint256 amount, uint256 tileId, string memory metadataUri) external"],
+          signer
+        );
+        const tx = await tileMarketplace.buyTile(
+          amount,
+          tileId,
+          metadataUri
+        );
+        await tx.wait();
+      }
+
+      // 5. Success: clear form, close modal, show message
+      setSuccessMsg("Tile purchased successfully!");
       setStep('success');
       setTimeout(() => {
         setSuccessMsg(null);
         onClose();
       }, 10000);
     } catch (e: any) {
+      console.error("Purchase error:", e);
       setErrorMsg(e.message || "Token transfer or upload failed");
     } finally {
       setUploading(false);
@@ -448,7 +491,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
         className="flex flex-col gap-4 w-full max-w-md mx-auto overflow-visible"
         onSubmit={e => {
           e.preventDefault();
-          const errs = validateSocialLinks(userType, form, userSocialPlatform, userSocialValue, projectPrimaryPlatform, projectPrimaryValue, projectAdditionalLinks, imageFile);
+          const errs = validateSocialLinks(userType, form, userSocialPlatform, userSocialValue, projectPrimaryPlatform, projectPrimaryValue, projectAdditionalLinks, imageFile as any);
           if (!imageFile) {
             errs.imageFile = 'Image is required.';
           }
@@ -481,9 +524,9 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
             accept="image/*"
             className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
             onChange={e => {
-              const file = e.target.files?.[0] || null;
-              setImageFile(file);
+              setImageFile(e.target.files);
               setErrors(errs => ({ ...errs, imageFile: '' }));
+              const file = e.target.files && e.target.files[0];
               if (file) {
                 if (!file.type.startsWith('image/') || file.size > 600 * 1024) {
                   setImagePreview(null);
@@ -623,7 +666,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
               const token = value === "PEPU_NATIVE"
                 ? TOKENS.find(t => t.isNative)
                 : TOKENS.find(t => t.address === value);
-              if (token) setSelectedToken(token);
+              if (token) setSelectedToken({ ...token, address: token.isNative ? undefined : token.address });
             }}
           >
             {TOKENS.map(token => (
@@ -656,7 +699,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
             />
           </div>
           <div className="text-xs text-black mt-1 text-right pr-1">
-            {sprfdBalance} available
+            {selectedToken.isNative ? `${sprfdBalance} PEPU` : `${sprfdBalance} SPRFD`} available
           </div>
                 </div>
         {/* Details Section (compact, black border) */}
@@ -694,7 +737,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           onClick={handleBuy}
           >
           {uploading ? <Loader2 className="animate-spin w-5 h-5 mr-1" /> : <ShoppingCart className="w-5 h-5 mr-1" />}
-          {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : 'Buy Tile')}
+          {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : `Buy Tile for ${price} ${selectedToken.name}`)}
           </button>
       </div>
     );
