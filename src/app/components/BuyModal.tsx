@@ -173,7 +173,10 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       setImagePreview(null);
       setTokenName('');
       setSprfdBalance('');
-      setSelectedToken(TOKENS[0]);
+      setSelectedToken({
+        ...TOKENS[0],
+        address: TOKENS[0].isNative ? undefined : (SPRFD_TOKEN_ADDRESS || TOKENS[0].address),
+      });
       setConnectedAddress(null);
       setUploading(false);
       setErrorMsg(null);

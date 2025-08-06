@@ -1,6 +1,6 @@
 
 
-export const SPRFD_ADDRESS = "0xaFD224042abbd3c51B82C9f43B681014c12649ca";
+export const SPRFD_ADDRESS = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
 
 export const TOKENS = [
   {
