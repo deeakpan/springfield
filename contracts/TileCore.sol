@@ -15,6 +15,9 @@ contract TileCore is Ownable {
     mapping(uint256 => bool) public tileExists;
     mapping(address => uint256[]) public userOwnedTiles;
     
+    // Count of total tiles created
+    uint256 public totalTilesCount;
+    
     // Events
     event TileCreated(
         address indexed owner, 
@@ -42,6 +45,7 @@ contract TileCore is Ownable {
         
         tileExists[tileId] = true;
         userOwnedTiles[owner].push(tileId);
+        totalTilesCount++;
         
         emit TileCreated(owner, tileId, metadataUri, isNativePayment);
     }

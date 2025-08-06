@@ -105,6 +105,9 @@ export default function GridPage() {
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [marketData, setMarketData] = useState<any>({ marketCapFormatted: '$0' });
+  const [soldTilesCount, setSoldTilesCount] = useState(0);
+  const [userOwnedTilesCount, setUserOwnedTilesCount] = useState(0);
 
   const { address: userAddress } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -126,6 +129,42 @@ export default function GridPage() {
     return oldId;
   };
 
+  // Fetch market data
+  const fetchMarketData = async () => {
+    try {
+      const response = await fetch('/api/market-data');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setMarketData(result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching market data:', error);
+    }
+  };
+
+  // Fetch contract stats (total tiles count and user's owned tiles)
+  const fetchContractStats = async () => {
+    try {
+      const url = userAddress 
+        ? `/api/contract-stats?userAddress=${userAddress}`
+        : '/api/contract-stats';
+      
+      const response = await fetch(url);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          setSoldTilesCount(result.data.totalTilesCount);
+          setUserOwnedTilesCount(result.data.userOwnedTilesCount);
+          console.log('Contract stats:', result.data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching contract stats:', error);
+    }
+  };
+
   // Fetch all details files from API route and build tileId -> details mapping
   const fetchTileDetails = async () => {
     try {
@@ -139,7 +178,9 @@ export default function GridPage() {
       const result = await response.json();
       if (result.success) {
         setTileDetails(result.data);
-        console.log('Loaded contract tiles:', Object.keys(result.data));
+        const count = Object.keys(result.data).length;
+        setSoldTilesCount(count);
+        console.log('Loaded contract tiles:', Object.keys(result.data), 'Count:', count);
       }
     } catch (error) {
       console.error('Error fetching contract tiles:', error);
@@ -150,13 +191,25 @@ export default function GridPage() {
 
   useEffect(() => {
     let isMounted = true;
-    const loadTileDetails = async () => {
-      await fetchTileDetails();
+    const loadData = async () => {
+      await Promise.all([
+        fetchTileDetails(),
+        fetchMarketData(),
+        fetchContractStats() // Call fetchContractStats here
+      ]);
     };
     
-    loadTileDetails();
+    loadData();
     return () => { isMounted = false; };
   }, []);
+
+  useEffect(() => {
+    console.log('Sold tiles count updated:', soldTilesCount);
+  }, [soldTilesCount]);
+
+  useEffect(() => {
+    console.log('Market data updated:', marketData);
+  }, [marketData]);
 
   // Show all tiles
   const filteredTiles = tiles;
@@ -182,8 +235,19 @@ export default function GridPage() {
 
   // Handle refresh button click
   const handleRefresh = () => {
-    fetchTileDetails();
+    Promise.all([
+      fetchTileDetails(),
+      fetchMarketData(),
+      fetchContractStats()
+    ]);
   };
+
+  // Refetch contract stats when user address changes
+  useEffect(() => {
+    if (userAddress) {
+      fetchContractStats();
+    }
+  }, [userAddress]);
 
   return (
     <div className="min-h-screen bg-blue-900 text-white">
@@ -281,48 +345,38 @@ export default function GridPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
               <div className="bg-gradient-to-br from-emerald-500/20 to-emerald-600/20 border border-emerald-500/30 rounded-xl p-2 sm:p-4">
                 <div className="text-emerald-300 text-xs sm:text-sm font-medium mb-1">Market Cap</div>
-                <div className="text-lg sm:text-2xl font-semibold text-white">$30,034,120</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">
+                  {marketData.marketCapFormatted}
+                  {/* Debug: {JSON.stringify(marketData)} */}
+                </div>
                 <div className="text-emerald-400/70 text-[10px] sm:text-xs mt-1">$SPRFD</div>
               </div>
 
               <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-2 sm:p-4">
                 <div className="text-blue-300 text-xs sm:text-sm font-medium mb-1">Sold Tiles</div>
                 <div className="text-lg sm:text-2xl font-semibold text-white">
-                  {tiles.filter(tile => tile.owner && !tile.isCenterArea).length}
+                  {soldTilesCount}
+                  {/* Debug: {soldTilesCount} */}
                 </div>
-                <div className="text-blue-400/70 text-[10px] sm:text-xs mt-1">Owned</div>
+                <div className="text-blue-400/70 text-[10px] sm:text-xs mt-1">Total</div>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-xl p-2 sm:p-4">
+                <div className="text-green-300 text-xs sm:text-sm font-medium mb-1">Your Tiles</div>
+                <div className="text-lg sm:text-2xl font-semibold text-white">
+                  {userAddress ? userOwnedTilesCount : '—'}
+                </div>
+                <div className="text-green-400/70 text-[10px] sm:text-xs mt-1">
+                  {userAddress ? 'Owned' : 'Connect Wallet'}
+                </div>
               </div>
 
               <div className="bg-gradient-to-br from-amber-500/20 to-amber-600/20 border border-amber-500/30 rounded-xl p-2 sm:p-4">
                 <div className="text-amber-300 text-xs sm:text-sm font-medium mb-1">Available</div>
                 <div className="text-lg sm:text-2xl font-semibold text-white">
-                  {tiles.filter(tile => !tile.owner && !tile.isCenterArea).length}
+                  {765 - soldTilesCount}
                 </div>
-                <div className="text-amber-400/70 text-[10px] sm:text-xs mt-1">of {tiles.filter(tile => !tile.isCenterArea).length} total</div>
-              </div>
-
-              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-xl p-2 sm:p-4">
-                <div className="text-purple-300 text-xs sm:text-sm font-medium mb-1">Attention Layer</div>
-                <div className="text-lg sm:text-2xl font-semibold text-white">
-                  {(() => {
-                    // const contractDetails = auctionContractDetails;
-                    // if (contractDetails.auctionActive) {
-                    //   return 'ACTIVE';
-                    // } else {
-                      return 'No Auction';
-                    // }
-                  })()}
-                </div>
-                <div className="text-purple-400/70 text-[10px] sm:text-xs mt-1">
-                  {(() => {
-                    // const contractDetails = auctionContractDetails;
-                    // if (contractDetails.auctionActive) {
-                    //   return 'Auction Active';
-                    // } else {
-                      return 'No Auction';
-                    // }
-                  })()}
-                </div>
+                <div className="text-amber-400/70 text-[10px] sm:text-xs mt-1">of 765 total</div>
               </div>
             </div>
           </motion.div>
