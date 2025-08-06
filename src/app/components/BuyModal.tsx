@@ -192,7 +192,9 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     } else {
       document.body.style.overflow = '';
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => { 
+      document.body.style.overflow = '';
+    };
   }, [open]);
 
       // Set fixed price based on selected token
@@ -756,12 +758,14 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       role="dialog"
       tabIndex={-1}
       onClick={handleBackdropClick}
+      onFocus={(e) => e.preventDefault()}
     >
       <div
         ref={modalRef}
         className={`relative w-full max-w-md mx-2 sm:mx-4 ${springfieldBlue} ${springfieldBorder} rounded-2xl shadow-2xl p-2 sm:p-4 md:p-6 flex flex-col items-start animate-fadeIn overflow-auto`}
         style={{ pointerEvents: 'auto', maxHeight: '90vh', wordBreak: 'break-word' }}
         onClick={e => e.stopPropagation()}
+        onFocus={(e) => e.preventDefault()}
       >
         <button
           className="absolute top-4 right-4 bg-red-600 text-white rounded-full p-2 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400"

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useState, Suspense } from 'react';
-import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet } from 'lucide-react';
+import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw } from 'lucide-react';
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
@@ -104,6 +104,7 @@ export default function GridPage() {
   const [hoveredTile, setHoveredTile] = useState<Tile | null>(null);
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { address: userAddress } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -126,27 +127,34 @@ export default function GridPage() {
   };
 
   // Fetch all details files from API route and build tileId -> details mapping
+  const fetchTileDetails = async () => {
+    try {
+      setIsRefreshing(true);
+      const response = await fetch('/api/contract-tiles');
+      if (!response.ok) {
+        console.error('Failed to fetch contract tiles');
+        return;
+      }
+      
+      const result = await response.json();
+      if (result.success) {
+        setTileDetails(result.data);
+        console.log('Loaded contract tiles:', Object.keys(result.data));
+      }
+    } catch (error) {
+      console.error('Error fetching contract tiles:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
-    const fetchTileDetails = async () => {
-      try {
-        const response = await fetch('/api/tile-details');
-        if (!response.ok) {
-          console.error('Failed to fetch tile details');
-          return;
-        }
-        
-        const result = await response.json();
-        if (result.success && isMounted) {
-          setTileDetails(result.data);
-          console.log('Loaded tile details:', Object.keys(result.data));
-        }
-      } catch (error) {
-        console.error('Error fetching tile details:', error);
-      }
+    const loadTileDetails = async () => {
+      await fetchTileDetails();
     };
     
-    fetchTileDetails();
+    loadTileDetails();
     return () => { isMounted = false; };
   }, []);
 
@@ -172,24 +180,32 @@ export default function GridPage() {
     setModalUserType(null); // Reset user type selection
   };
 
+  // Handle refresh button click
+  const handleRefresh = () => {
+    fetchTileDetails();
+  };
+
   return (
     <div className="min-h-screen bg-blue-900 text-white">
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-blue-500 border-b-2 border-black shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex justify-between items-center h-12 sm:h-16">
             <motion.div
-              className="flex items-center space-x-3"
+              className="flex items-center space-x-2 sm:space-x-3"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <a href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-                <div className="w-10 h-10 rounded-full bg-green-500 border-2 border-black flex items-center justify-center shadow-lg">
-                  <Map className="w-6 h-6 text-black" />
+              <a href="/" className="flex items-center space-x-2 sm:space-x-3 hover:opacity-80 transition-opacity">
+                <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-green-500 border-2 border-black flex items-center justify-center shadow-lg">
+                  <Map className="w-3 h-3 sm:w-6 sm:h-6 text-black" />
                 </div>
-                <span className="text-2xl font-bold text-yellow-300">
+                <span className="text-lg sm:text-2xl font-bold text-yellow-300 hidden sm:block">
                   Springfield Grid
+                </span>
+                <span className="text-sm font-bold text-yellow-300 sm:hidden">
+                  Grid
                 </span>
               </a>
             </motion.div>
@@ -211,10 +227,20 @@ export default function GridPage() {
             </motion.div>
 
             <motion.div
+              className="flex items-center space-x-2 sm:space-x-4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
+              <button
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+                className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 bg-yellow-400 text-black rounded-md font-bold hover:bg-yellow-300 transition-colors disabled:opacity-50 text-xs sm:text-sm"
+              >
+                <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh Grid'}</span>
+                <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
+              </button>
               <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
             </motion.div>
           </div>
@@ -303,7 +329,7 @@ export default function GridPage() {
 
           {/* Grid Container */}
           <motion.div
-            className="flex justify-center overflow-x-auto"
+            className="flex justify-center overflow-x-auto relative"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
@@ -395,10 +421,8 @@ export default function GridPage() {
                       }}
                       onClick={() => {
                         if (tile.isCenterArea) {
-                          if (!isModalOpen || selectedTile?.id !== tile.id) {
-                            setSelectedTile(tile);
-                            setIsModalOpen(true);
-                          }
+                          // Center auction tile - do nothing, cannot be purchased
+                          return;
                         } else if (details && !details.isAuction) {
                           setModalDetails(details);
                         } else if (details && details.isAuction) {
@@ -422,6 +446,17 @@ export default function GridPage() {
                 })}
               </div>
             </div>
+
+            {/* Refresh Overlay */}
+            {isRefreshing && (
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-lg z-10">
+                <div className="bg-blue-500 p-6 rounded-lg border-2 border-black flex flex-col items-center gap-3">
+                  <RefreshCw className="w-8 h-8 animate-spin text-yellow-300" />
+                  <div className="text-white font-bold text-lg">Refreshing Grid...</div>
+                  <div className="text-white/80 text-sm">Please wait while we fetch the latest tiles</div>
+                </div>
+              </div>
+            )}
           </motion.div>
 
           {/* Hover Info */}
