@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import lighthouse from '@lighthouse-web3/sdk';
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,18 +9,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Tile ID is required' }, { status: 400 });
     }
 
+    // For now, let's use the existing approach but make it more efficient
+    // In the future, this should fetch the metadataUri from the contract and then fetch the metadata
+    
     const apiKey = process.env.LIGHTHOUSE_API_KEY;
     
     if (!apiKey) {
       return NextResponse.json({ error: 'Lighthouse API key not configured' }, { status: 500 });
     }
 
+    // Import lighthouse dynamically to avoid issues
+    const lighthouse = await import('@lighthouse-web3/sdk');
+
     // Fetch all uploads from Lighthouse
     let lastKey = null;
     let allFiles: any[] = [];
     
     while (true) {
-      const resp = await lighthouse.getUploads(apiKey, lastKey);
+      const resp = await lighthouse.default.getUploads(apiKey, lastKey);
       const files = resp?.data?.fileList || [];
       allFiles = allFiles.concat(files);
       
@@ -76,10 +81,18 @@ export async function GET(req: NextRequest) {
     if (tileMetadata) {
       return NextResponse.json(tileMetadata);
     } else {
-      return NextResponse.json({ error: 'Tile metadata not found' }, { status: 404 });
+      // Return a default structure if metadata not found
+      return NextResponse.json({
+        name: `Tile #${tileId}`,
+        imageCID: null,
+        socials: null,
+        website: null,
+        address: null,
+        cid: null
+      });
     }
   } catch (error) {
-    console.error('Error fetching tile details:', error);
-    return NextResponse.json({ error: 'Failed to fetch tile details' }, { status: 500 });
+    console.error('Error fetching tile metadata:', error);
+    return NextResponse.json({ error: 'Failed to fetch tile metadata' }, { status: 500 });
   }
 } 

@@ -113,6 +113,7 @@ export default function Home() {
             >
               <a href="#features" className="text-white hover:text-green-400 font-medium transition-colors">Features</a>
               <a href="/grid" className="text-white hover:text-green-400 font-medium transition-colors">Grid</a>
+              <a href="/marketplace" className="text-white hover:text-green-400 font-medium transition-colors">Marketplace</a>
               <a href="#pricing" className="text-white hover:text-green-400 font-medium transition-colors">Pricing</a>
               <a href="#community" className="text-white hover:text-green-400 font-medium transition-colors">Community</a>
             </motion.div>

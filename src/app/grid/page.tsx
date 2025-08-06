@@ -288,6 +288,10 @@ export default function GridPage() {
                 <Grid3X3 className="w-4 h-4" />
                 Grid
               </a>
+              <a href="/marketplace" className="text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2">
+                <ShoppingCart className="w-4 h-4" />
+                Marketplace
+              </a>
             </motion.div>
 
             <motion.div
