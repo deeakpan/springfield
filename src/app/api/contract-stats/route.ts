@@ -13,6 +13,9 @@ export async function GET(req: NextRequest) {
     const userAddress = searchParams.get('userAddress');
     
     const TILE_CORE_ADDRESS = process.env.NEXT_PUBLIC_TILE_CORE_ADDRESS;
+    console.log('Using TileCore address:', TILE_CORE_ADDRESS);
+    console.log('User address:', userAddress);
+    
     if (!TILE_CORE_ADDRESS) {
       throw new Error('TileCore address not configured');
     }
@@ -23,18 +26,26 @@ export async function GET(req: NextRequest) {
 
     // Get total tiles count
     const totalTilesCount = await tileCoreContract.totalTilesCount();
+    console.log('Total tiles count:', totalTilesCount.toString());
     
     let userOwnedTilesCount = 0;
     
     // Get user's owned tiles if address provided
     if (userAddress && ethers.isAddress(userAddress)) {
       try {
+        console.log('Calling getUserOwnedTiles for address:', userAddress);
         const userTiles = await tileCoreContract.getUserOwnedTiles(userAddress);
+        console.log('Raw user tiles response:', userTiles);
         userOwnedTilesCount = userTiles.length;
-      } catch (error) {
+        console.log('User tiles array:', userTiles);
+        console.log('User owned tiles count:', userOwnedTilesCount);
+      } catch (error: any) {
         console.error('Error fetching user tiles:', error);
+        console.error('Error details:', error.message);
         userOwnedTilesCount = 0;
       }
+    } else {
+      console.log('No valid user address provided or address is invalid');
     }
 
     return NextResponse.json({
