@@ -20,7 +20,7 @@ async function main() {
         BID_RECIPIENT: "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E", // Your payout address
         
         // ERC20 token address for bidding (SPRFD token)
-        BIDDING_TOKEN: "0xaFD224042abbd3c51B82C9f43B681014c12649ca" // REPLACE WITH ACTUAL TOKEN ADDRESS
+        BIDDING_TOKEN: "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1" // REPLACE WITH ACTUAL TOKEN ADDRESS
     };
 
     // Validate configuration

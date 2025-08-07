@@ -8,7 +8,7 @@ import TileDetailsModal from '../components/TileDetailsModal';
 import OwnedTileCard from '../../components/OwnedTileCard';
 import MarketplaceListingCard from '../../components/MarketplaceListingCard';
 import { motion } from 'framer-motion';
-import { RefreshCw, Plus, ShoppingCart, Home, Users, Map, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye } from 'lucide-react';
+import { RefreshCw, Plus, ShoppingCart, Home, Users, Map, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye, X, Store, ShoppingBag, Users as UsersIcon, Coins as CoinsIcon, Calendar as CalendarIcon } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { formatEther } from 'viem';
 
@@ -23,6 +23,7 @@ export default function MarketplacePage() {
   const [rentPrice, setRentPrice] = useState('');
   const [rentDuration, setRentDuration] = useState('1');
   const [isNativePayment, setIsNativePayment] = useState(true);
+  const [showComingSoon, setShowComingSoon] = useState(true);
   
   const {
     activeSaleListings,
@@ -69,6 +70,107 @@ export default function MarketplacePage() {
 
   return (
     <div className="min-h-screen bg-blue-900 text-white">
+      {/* Coming Soon Modal */}
+      {showComingSoon && (
+        <>
+                     {/* Transparent overlay with light blur that blocks interactions */}
+           <div 
+             className="fixed top-16 inset-x-0 bottom-0 z-[9998] bg-transparent backdrop-blur-sm pointer-events-auto" 
+             onMouseDown={(e) => e.preventDefault()}
+             onClick={(e) => e.preventDefault()}
+             onTouchStart={(e) => e.preventDefault()}
+             onWheel={(e) => e.preventDefault()}
+             onScroll={(e) => e.preventDefault()}
+           ></div>
+          
+          {/* Modal positioned above */}
+          <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-[9999] pointer-events-auto">
+            {/* Modal content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="relative bg-gradient-to-br from-blue-800 to-blue-900 border-2 border-yellow-400 rounded-2xl p-6 w-80 shadow-2xl"
+            >
+              {/* Header */}
+              <div className="text-center mb-4">
+                <div className="flex justify-center mb-2">
+                  <div className="w-12 h-12 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                    <Store className="w-6 h-6 text-blue-900" />
+                  </div>
+                </div>
+                <h1 className="text-xl font-bold text-yellow-400 mb-1">
+                  Springfield Marketplace
+                </h1>
+                <p className="text-lg text-yellow-300 font-semibold">
+                  Coming Soon
+                </p>
+              </div>
+
+              {/* Features list */}
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-white text-center mb-3">
+                  What you'll be able to do:
+                </h2>
+                
+                <div className="space-y-2">
+                  {/* Buy Tiles */}
+                  <div className="flex items-center space-x-3 p-2 bg-blue-700 bg-opacity-50 rounded-lg border border-blue-600">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                      <ShoppingBag className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-yellow-300 text-sm">Buy Tiles</h3>
+                      <p className="text-xs text-gray-300">Purchase tiles with PEPU or SPRFD tokens</p>
+                    </div>
+                  </div>
+
+                  {/* Rent Tiles */}
+                  <div className="flex items-center space-x-3 p-2 bg-blue-700 bg-opacity-50 rounded-lg border border-blue-600">
+                    <div className="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
+                      <CalendarIcon className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-yellow-300 text-sm">Rent Tiles</h3>
+                      <p className="text-xs text-gray-300">Rent tiles for temporary use</p>
+                    </div>
+                  </div>
+
+                  {/* List for Sale */}
+                  <div className="flex items-center space-x-3 p-2 bg-blue-700 bg-opacity-50 rounded-lg border border-blue-600">
+                    <div className="w-6 h-6 bg-orange-500 rounded-full flex items-center justify-center">
+                      <Tag className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-yellow-300 text-sm">List for Sale</h3>
+                      <p className="text-xs text-gray-300">Sell your tiles to other users</p>
+                    </div>
+                  </div>
+
+                  {/* List for Rent */}
+                  <div className="flex items-center space-x-3 p-2 bg-blue-700 bg-opacity-50 rounded-lg border border-blue-600">
+                    <div className="w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
+                      <Clock className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-yellow-300 text-sm">List for Rent</h3>
+                      <p className="text-xs text-gray-300">Rent out tiles for passive income</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="text-center mt-4 pt-3 border-t border-blue-600">
+                <p className="text-xs text-gray-400">
+                  Get ready to trade and explore!
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </>
+      )}
+
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-50 bg-blue-500 border-b-2 border-black shadow-lg">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
