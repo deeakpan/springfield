@@ -1,27 +1,34 @@
 "use client";
 
-import { motion } from 'framer-motion';
-import { Map, ShoppingCart, Home, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye } from 'lucide-react';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import React, { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { useMarketplace } from '../../hooks/useMarketplace';
+import BuyModal from '../components/BuyModal';
+import TileDetailsModal from '../components/TileDetailsModal';
+import OwnedTileCard from '../../components/OwnedTileCard';
+import MarketplaceListingCard from '../../components/MarketplaceListingCard';
+import { motion } from 'framer-motion';
+import { RefreshCw, Plus, ShoppingCart, Home, Users, Map, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye } from 'lucide-react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { formatEther } from 'viem';
-import { useState, useEffect } from 'react';
 
 export default function MarketplacePage() {
   const [activeTab, setActiveTab] = useState<'browse' | 'my-tiles' | 'my-listings'>('browse');
-  const [selectedTile, setSelectedTile] = useState<any>(null);
-  const [showTileModal, setShowTileModal] = useState(false);
-  const [tileMetadata, setTileMetadata] = useState<{[key: string]: any}>({});
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [showRentModal, setShowRentModal] = useState(false);
+  const [showTileModal, setShowTileModal] = useState(false);
   const [selectedTileForAction, setSelectedTileForAction] = useState<any>(null);
+  const [selectedTile, setSelectedTile] = useState<any>(null);
   const [salePrice, setSalePrice] = useState('');
   const [rentPrice, setRentPrice] = useState('');
-  const [isNativePayment, setIsNativePayment] = useState(false);
+  const [rentDuration, setRentDuration] = useState('1');
+  const [isNativePayment, setIsNativePayment] = useState(true);
   
   const {
     activeSaleListings,
     activeRentalListings,
+    userSaleListings,
+    userRentalListings,
     userTiles,
     loading,
     sprfdBalance,
@@ -32,98 +39,33 @@ export default function MarketplacePage() {
     rentTileAction,
     cancelSaleListingAction,
     cancelRentalListingAction,
+    fetchUserTiles,
+    fetchUserListings,
+    fetchMarketplaceData,
   } = useMarketplace();
 
-  // Function to load tile metadata
-  const loadTileMetadata = async (tileId: string) => {
-    if (tileMetadata[tileId]) return tileMetadata[tileId];
-    
-    try {
-      console.log('Loading metadata for tile:', tileId);
-      
-      // Find the tile in userTiles to get the metadataUri
-      const tile = userTiles.find(t => t.tileId.toString() === tileId);
-      
-      if (tile && tile.metadataUri) {
-        console.log(`Found metadataUri for tile ${tileId}:`, tile.metadataUri);
-        
-        // Convert IPFS URI to HTTP gateway
-        const ipfsHash = tile.metadataUri.replace('ipfs://', '');
-        const metadataUrl = `https://gateway.lighthouse.storage/ipfs/${ipfsHash}`;
-        
-        console.log(`Fetching metadata from: ${metadataUrl}`);
-        const response = await fetch(metadataUrl);
-        
-        if (response.ok) {
-          const metadata = await response.json();
-          console.log(`Metadata for tile ${tileId}:`, metadata);
-          
-          // Extract image CID from metadata
-          const imageCID = metadata.image ? metadata.image.replace('ipfs://', '') : null;
-          
-          const data = {
-            name: metadata.name || `Tile #${tileId}`,
-            imageCID: imageCID,
-            description: metadata.description || `Tile ${tileId} metadata`,
-            ...metadata
-          };
-          
-          console.log('Metadata loaded for tile', tileId, ':', data);
-          setTileMetadata(prev => ({ ...prev, [tileId]: data }));
-          return data;
-        } else {
-          console.error(`Failed to fetch metadata from ${metadataUrl}:`, response.status);
-        }
-      } else {
-        console.log(`No metadataUri found for tile ${tileId}`);
-      }
-      
-      // Fallback metadata
-      const fallbackData = {
-        name: `Tile #${tileId}`,
-        imageCID: null,
-        description: `Tile ${tileId} metadata`,
-        error: 'No metadata URI found'
-      };
-      
-      setTileMetadata(prev => ({ ...prev, [tileId]: fallbackData }));
-      return fallbackData;
-    } catch (error) {
-      console.error('Error loading tile metadata:', error);
-      
-      // Fallback metadata on error
-      const errorData = {
-        name: `Tile #${tileId}`,
-        imageCID: null,
-        description: `Tile ${tileId} metadata`,
-        error: 'Failed to load metadata'
-      };
-      
-      setTileMetadata(prev => ({ ...prev, [tileId]: errorData }));
-      return errorData;
-    }
-  };
+  // Debug logging
+  console.log('Marketplace page state:', {
+    activeTab,
+    activeSaleListings: activeSaleListings.length,
+    activeRentalListings: activeRentalListings.length,
+    userSaleListings: userSaleListings.length,
+    userRentalListings: userRentalListings.length,
+    userTiles: userTiles.length,
+    loading
+  });
 
-  // Load metadata for all tiles when they change
+  // Effect to fetch appropriate data based on active tab
   useEffect(() => {
-    const loadAllMetadata = async () => {
-      const allTiles = [
-        ...activeSaleListings.map((listing: any) => listing.tileId),
-        ...activeRentalListings.map((listing: any) => listing.tileId),
-        ...userTiles.map((tile: any) => tile.tileId)
-      ];
-      
-      console.log('Loading metadata for tiles:', allTiles);
-      
-      for (const tileId of allTiles) {
-        await loadTileMetadata(tileId.toString());
-      }
-    };
-    
-    if (!loading) {
-      loadAllMetadata();
+    console.log('Tab changed to:', activeTab);
+    if (activeTab === 'browse') {
+      console.log('Fetching marketplace data...');
+      fetchMarketplaceData();
+    } else if (activeTab === 'my-listings') {
+      console.log('Fetching user listings...');
+      fetchUserListings();
     }
-  }, [activeSaleListings, activeRentalListings, userTiles, loading]);
+  }, [activeTab, fetchMarketplaceData, fetchUserListings]);
 
   return (
     <div className="min-h-screen bg-blue-900 text-white">
@@ -255,47 +197,50 @@ export default function MarketplacePage() {
              </div>
            </motion.div>
 
-           {/* Navigation Tabs */}
-           <motion.div
-             className="flex flex-wrap gap-3 mb-8"
-             initial={{ opacity: 0, y: 20 }}
-             animate={{ opacity: 1, y: 0 }}
-             transition={{ duration: 0.6, delay: 0.5 }}
-           >
-             <button
-               onClick={() => setActiveTab('browse')}
-               className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                 activeTab === 'browse'
-                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
-                   : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
-               }`}
-             >
-               <Package className="w-5 h-5" />
-               Browse Marketplace
-             </button>
-             <button
-               onClick={() => setActiveTab('my-tiles')}
-               className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                 activeTab === 'my-tiles'
-                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
-                   : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
-               }`}
-             >
-               <Map className="w-5 h-5" />
-               My Tiles
-             </button>
-             <button
-               onClick={() => setActiveTab('my-listings')}
-               className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                 activeTab === 'my-listings'
-                   ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
-                   : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
-               }`}
-             >
-               <Settings className="w-5 h-5" />
-               My Listings
-             </button>
-           </motion.div>
+           {/* Tab Navigation */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="flex flex-wrap gap-2 sm:gap-4 mb-8"
+          >
+            <button
+              onClick={() => setActiveTab('browse')}
+              className={`flex items-center gap-1 sm:gap-3 px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-semibold transition-all duration-300 text-xs sm:text-sm ${
+                activeTab === 'browse'
+                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
+                  : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
+              }`}
+            >
+              <Package className="w-3 h-3 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Browse Marketplace</span>
+              <span className="sm:hidden">Browse</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('my-tiles')}
+              className={`flex items-center gap-1 sm:gap-3 px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-semibold transition-all duration-300 text-xs sm:text-sm ${
+                activeTab === 'my-tiles'
+                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
+                  : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
+              }`}
+            >
+              <Map className="w-3 h-3 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">My Tiles</span>
+              <span className="sm:hidden">Tiles</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('my-listings')}
+              className={`flex items-center gap-1 sm:gap-3 px-3 sm:px-6 py-2 sm:py-3 rounded-xl font-semibold transition-all duration-300 text-xs sm:text-sm ${
+                activeTab === 'my-listings'
+                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 text-black shadow-lg scale-105'
+                  : 'bg-white/10 text-white hover:bg-white/20 hover:scale-105'
+              }`}
+            >
+              <Settings className="w-3 h-3 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">My Listings</span>
+              <span className="sm:hidden">Listings</span>
+            </button>
+          </motion.div>
 
                        {/* Tab Content */}
             {activeTab === 'browse' && (
@@ -306,15 +251,26 @@ export default function MarketplacePage() {
               >
                 <div className="space-y-8">
                   {/* Sale Listings */}
-                  <div className="bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-400/20 rounded-xl p-8 shadow-xl">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="bg-green-500/20 p-3 rounded-lg">
-                        <Tag className="w-8 h-8 text-green-400" />
+                  <div className="bg-gradient-to-r from-green-600/10 to-emerald-600/10 border border-green-400/20 rounded-xl p-4 sm:p-6 lg:p-8 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-8 gap-4">
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="bg-green-500/20 p-2 sm:p-3 rounded-lg">
+                          <Tag className="w-6 h-6 sm:w-8 sm:h-8 text-green-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg sm:text-2xl font-bold text-white">Tiles for Sale</h3>
+                          <p className="text-gray-300 text-sm sm:text-base">Purchase tiles directly from other users</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-white">Tiles for Sale</h3>
-                        <p className="text-gray-300">Purchase tiles directly from other users</p>
-                      </div>
+                      <button
+                        onClick={fetchMarketplaceData}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-gray-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
+                        <span className="sm:hidden">↻</span>
+                      </button>
                     </div>
                     
                     {loading ? (
@@ -324,78 +280,17 @@ export default function MarketplacePage() {
                       </div>
                     ) : activeSaleListings.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                                         {activeSaleListings.map((listing) => {
-                          const metadata = tileMetadata[listing.tileId.toString()];
-                          console.log('Rendering sale listing for tile', listing.tileId, 'with metadata:', metadata);
-                          return (
-                             <div key={Number(listing.tileId)} className="bg-white/5 rounded-xl p-6 border border-white/10 hover:border-green-400/30 transition-all duration-300 hover:scale-105 group">
-                               <div className="flex justify-between items-start mb-4">
-                                 <div className="bg-green-500/20 p-2 rounded-lg">
-                                   <Grid className="w-6 h-6 text-green-400" />
-                                 </div>
-                                 <button
-                                   onClick={() => {
-                                     setSelectedTile({ ...listing, type: 'sale' });
-                                     setShowTileModal(true);
-                                   }}
-                                   className="text-gray-400 hover:text-white transition-colors"
-                                 >
-                                   <Eye className="w-5 h-5" />
-                                 </button>
-                               </div>
-                               
-                               {/* Tile Image */}
-                               {metadata?.imageCID && (
-                                 <div className="flex justify-center mb-4">
-                                   <img 
-                                     src={`https://gateway.lighthouse.storage/ipfs/${metadata.imageCID}`} 
-                                     alt={metadata?.name || `Tile ${listing.tileId}`}
-                                     className="w-20 h-20 object-contain rounded-lg border border-white/20 bg-white/10"
-                                   />
-                                 </div>
-                               )}
-                               
-                               <h4 className="text-xl font-bold text-white mb-2 text-center">
-                                 {metadata?.name || `Tile #${Number(listing.tileId)}`}
-                               </h4>
-                            
-                            <div className="space-y-3 mb-6">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-300 text-sm">
-                                  Seller: {listing.seller.slice(0, 6)}...{listing.seller.slice(-4)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <Coins className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-300 text-sm">
-                                  Payment: {listing.isNativePayment ? 'PEPU (Native)' : 'SPRFD Token'}
-                                </span>
-                              </div>
-                              
-                              <div className="bg-green-500/20 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <p className="text-2xl font-bold text-green-400">
-                                    {formatEther(listing.price)}
-                                  </p>
-                                  <p className="text-green-300 text-sm">
-                                    {listing.isNativePayment ? 'PEPU' : 'SPRFD'}
-                                  </p>
-                                </div>
-                              </div>
-                            </div>
-                            
-                                                         <button
-                               onClick={() => buyListedTileAction(Number(listing.tileId), formatEther(listing.price), listing.isNativePayment)}
-                               className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 hover:scale-105"
-                             >
-                               Purchase Tile
-                             </button>
-                           </div>
-                         );
-                       })}
-                      </div>
+                          {activeSaleListings.map((listing) => (
+                            <MarketplaceListingCard
+                              key={Number(listing.tileId)}
+                              listing={listing}
+                              type="sale"
+                              onBuy={(tileId, price, isNativePayment) => {
+                                buyListedTileAction(tileId, price, isNativePayment);
+                              }}
+                            />
+                          ))}
+                        </div>
                     ) : (
                       <div className="text-center py-12">
                         <div className="bg-green-500/20 p-6 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
@@ -408,15 +303,26 @@ export default function MarketplacePage() {
                   </div>
 
                   {/* Rental Listings */}
-                  <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-400/20 rounded-xl p-8 shadow-xl">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="bg-blue-500/20 p-3 rounded-lg">
-                        <Clock className="w-8 h-8 text-blue-400" />
+                  <div className="bg-gradient-to-r from-blue-600/10 to-purple-600/10 border border-blue-400/20 rounded-xl p-4 sm:p-6 lg:p-8 shadow-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-8 gap-4">
+                      <div className="flex items-center gap-2 sm:gap-4">
+                        <div className="bg-blue-500/20 p-2 sm:p-3 rounded-lg">
+                          <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg sm:text-2xl font-bold text-white">Tiles for Rent</h3>
+                          <p className="text-gray-300 text-sm sm:text-base">Rent tiles for temporary use</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-2xl font-bold text-white">Tiles for Rent</h3>
-                        <p className="text-gray-300">Rent tiles for temporary use</p>
-                      </div>
+                      <button
+                        onClick={fetchMarketplaceData}
+                        disabled={loading}
+                        className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-500 text-white font-semibold rounded-lg transition-colors text-sm"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
+                        <span className="sm:hidden">↻</span>
+                      </button>
                     </div>
                     
                     {loading ? (
@@ -426,89 +332,17 @@ export default function MarketplacePage() {
                       </div>
                     ) : activeRentalListings.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                                 {activeRentalListings.map((listing) => {
-                           const metadata = tileMetadata[listing.tileId.toString()];
-                           return (
-                             <div key={Number(listing.tileId)} className="bg-white/5 rounded-xl p-6 border border-white/10 hover:border-blue-400/30 transition-all duration-300 hover:scale-105 group">
-                               <div className="flex justify-between items-start mb-4">
-                                 <div className="bg-blue-500/20 p-2 rounded-lg">
-                                   <Grid className="w-6 h-6 text-blue-400" />
-                                 </div>
-                                 <button
-                                   onClick={() => {
-                                     setSelectedTile({ ...listing, type: 'rental' });
-                                     setShowTileModal(true);
-                                   }}
-                                   className="text-gray-400 hover:text-white transition-colors"
-                                 >
-                                   <Eye className="w-5 h-5" />
-                                 </button>
-                               </div>
-                               
-                               {/* Tile Image */}
-                               {metadata?.imageCID && (
-                                 <div className="flex justify-center mb-4">
-                                   <img 
-                                     src={`https://gateway.lighthouse.storage/ipfs/${metadata.imageCID}`} 
-                                     alt={metadata?.name || `Tile ${listing.tileId}`}
-                                     className="w-20 h-20 object-contain rounded-lg border border-white/20 bg-white/10"
-                                   />
-                                 </div>
-                               )}
-                               
-                               <h4 className="text-xl font-bold text-white mb-2 text-center">
-                                 {metadata?.name || `Tile #${Number(listing.tileId)}`}
-                               </h4>
-                            
-                            <div className="space-y-3 mb-6">
-                              <div className="flex items-center gap-2">
-                                <User className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-300 text-sm">
-                                  Owner: {listing.owner.slice(0, 6)}...{listing.owner.slice(-4)}
-                                </span>
-                              </div>
-                              
-                              <div className="flex items-center gap-2">
-                                <Coins className="w-4 h-4 text-gray-400" />
-                                <span className="text-gray-300 text-sm">
-                                  Payment: {listing.isNativePayment ? 'PEPU (Native)' : 'SPRFD Token'}
-                                </span>
-                              </div>
-                              
-                              <div className="bg-blue-500/20 p-3 rounded-lg">
-                                <div className="text-center">
-                                  <p className="text-2xl font-bold text-blue-400">
-                                    {formatEther(listing.pricePerDay)}
-                                  </p>
-                                  <p className="text-blue-300 text-sm">
-                                    {listing.isNativePayment ? 'PEPU' : 'SPRFD'} / day
-                                  </p>
-                                </div>
-                              </div>
-                              
-                              {listing.currentRenter !== '0x0000000000000000000000000000000000000000' && (
-                                <div className="bg-red-500/20 p-2 rounded-lg text-center">
-                                  <p className="text-red-400 text-sm font-medium">Currently Rented</p>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {listing.currentRenter === '0x0000000000000000000000000000000000000000' ? (
-                              <button
-                                onClick={() => rentTileAction(Number(listing.tileId), 1)}
-                                className="w-full bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 hover:scale-105"
-                              >
-                                Rent Tile
-                              </button>
-                            ) : (
-                              <button disabled className="w-full bg-gray-500 text-gray-300 py-3 px-4 rounded-lg font-semibold cursor-not-allowed">
-                                Currently Rented
-                              </button>
-                                                         )}
-                           </div>
-                         );
-                       })}
-                      </div>
+                          {activeRentalListings.map((listing) => (
+                            <MarketplaceListingCard
+                              key={Number(listing.tileId)}
+                              listing={listing}
+                              type="rental"
+                              onRent={(tileId, duration) => {
+                                rentTileAction(tileId, duration);
+                              }}
+                            />
+                          ))}
+                        </div>
                     ) : (
                       <div className="text-center py-12">
                         <div className="bg-blue-500/20 p-6 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
@@ -530,9 +364,19 @@ export default function MarketplacePage() {
                transition={{ duration: 0.6, delay: 0.6 }}
              >
                <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 shadow-xl">
-                 <div className="flex items-center gap-3 mb-6">
-                   <Map className="w-6 h-6 text-yellow-300" />
-                   <h3 className="text-xl font-bold text-white">My Tiles</h3>
+                 <div className="flex items-center justify-between mb-6">
+                   <div className="flex items-center gap-3">
+                     <Map className="w-6 h-6 text-yellow-300" />
+                     <h3 className="text-xl font-bold text-white">My Tiles</h3>
+                   </div>
+                   <button
+                     onClick={fetchUserTiles}
+                     disabled={loading}
+                     className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 text-black font-semibold rounded-lg transition-colors"
+                   >
+                     <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                     Refresh
+                   </button>
                  </div>
                  
                  {loading ? (
@@ -541,49 +385,29 @@ export default function MarketplacePage() {
                      <p className="text-gray-300 mt-2">Loading your tiles...</p>
                    </div>
                  ) : userTiles.length > 0 ? (
-                                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                      {userTiles.map((tile) => {
-                        const metadata = tileMetadata[tile.tileId.toString()];
-                        return (
-                          <div key={Number(tile.tileId)} className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-colors">
-                            {/* Tile Image */}
-                            {metadata?.imageCID && (
-                              <div className="flex justify-center mb-3">
-                                <img 
-                                  src={`https://gateway.lighthouse.storage/ipfs/${metadata.imageCID}`} 
-                                  alt={metadata?.name || `Tile ${tile.tileId}`}
-                                  className="w-16 h-16 object-contain rounded-lg border border-white/20 bg-white/10"
-                                />
-                              </div>
-                            )}
-                            
-                            <div className="text-center mb-4">
-                              <p className="font-bold text-white text-lg">{metadata?.name || `Tile #${Number(tile.tileId)}`}</p>
-                              <p className="text-gray-300 text-sm">Payment: {tile.isNativePayment ? 'PEPU' : 'SPRFD'}</p>
-                            </div>
-                         <div className="space-y-2">
-                                                       <button
-                              onClick={() => {
-                                setSelectedTileForAction(tile);
-                                setShowSaleModal(true);
-                              }}
-                              className="w-full bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded font-medium transition-colors"
-                            >
-                              List for Sale
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedTileForAction(tile);
-                                setShowRentModal(true);
-                              }}
-                              className="w-full bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded font-medium transition-colors"
-                            >
-                              List for Rent
-                            </button>
-                                                   </div>
-                        </div>
-                      );
-                    })}
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                     {userTiles.map((tile) => {
+                       return (
+                         <OwnedTileCard
+                           key={Number(tile.tileId)}
+                           tile={tile}
+                           onListForSale={(tileId) => {
+                             setSelectedTileForAction(tile);
+                             setShowSaleModal(true);
+                           }}
+                           onListForRent={(tileId) => {
+                             setSelectedTileForAction(tile);
+                             setShowRentModal(true);
+                           }}
+                           onCancelSale={(tileId) => {
+                             cancelSaleListingAction(tileId);
+                           }}
+                           onCancelRent={(tileId) => {
+                             cancelRentalListingAction(tileId);
+                           }}
+                         />
+                       );
+                     })}
                    </div>
                  ) : (
                    <div className="text-center py-8">
@@ -605,30 +429,88 @@ export default function MarketplacePage() {
                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                  {/* My Sale Listings */}
                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 shadow-xl">
-                   <div className="flex items-center gap-3 mb-6">
-                     <Tag className="w-6 h-6 text-yellow-300" />
-                     <h3 className="text-xl font-bold text-white">My Sale Listings</h3>
+                   <div className="flex items-center justify-between mb-6">
+                     <div className="flex items-center gap-3">
+                       <Tag className="w-6 h-6 text-yellow-300" />
+                       <h3 className="text-xl font-bold text-white">My Sale Listings</h3>
+                     </div>
+                     <button
+                       onClick={fetchUserListings}
+                       disabled={loading}
+                       className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 text-black font-semibold rounded-lg transition-colors"
+                     >
+                       <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                       Refresh
+                     </button>
                    </div>
                    
-                   <div className="text-center py-8">
-                     <Tag className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                     <p className="text-gray-300">No active sale listings</p>
-                     <p className="text-gray-400 text-sm mt-1">List your tiles for sale to see them here</p>
-                   </div>
+                   {loading ? (
+                     <div className="text-center py-8">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-300 mx-auto"></div>
+                       <p className="text-gray-300 mt-2">Loading your sale listings...</p>
+                     </div>
+                                       ) : userSaleListings.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {userSaleListings.map((listing) => (
+                         <MarketplaceListingCard
+                           key={Number(listing.tileId)}
+                           listing={listing}
+                           type="sale"
+                           onCancel={cancelSaleListingAction}
+                           isOwnListing={true}
+                         />
+                       ))}
+                     </div>
+                   ) : (
+                     <div className="text-center py-8">
+                       <Tag className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                       <p className="text-gray-300">No active sale listings</p>
+                       <p className="text-gray-400 text-sm mt-1">List your tiles for sale to see them here</p>
+                     </div>
+                   )}
                  </div>
 
                  {/* My Rental Listings */}
                  <div className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg p-6 shadow-xl">
-                   <div className="flex items-center gap-3 mb-6">
-                     <Clock className="w-6 h-6 text-yellow-300" />
-                     <h3 className="text-xl font-bold text-white">My Rental Listings</h3>
+                   <div className="flex items-center justify-between mb-6">
+                     <div className="flex items-center gap-3">
+                       <Clock className="w-6 h-6 text-yellow-300" />
+                       <h3 className="text-xl font-bold text-white">My Rental Listings</h3>
+                     </div>
+                     <button
+                       onClick={fetchUserListings}
+                       disabled={loading}
+                       className="flex items-center gap-2 px-4 py-2 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-500 text-black font-semibold rounded-lg transition-colors"
+                     >
+                       <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                       Refresh
+                     </button>
                    </div>
                    
-                   <div className="text-center py-8">
-                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                     <p className="text-gray-300">No active rental listings</p>
-                     <p className="text-gray-400 text-sm mt-1">List your tiles for rent to see them here</p>
-                   </div>
+                   {loading ? (
+                     <div className="text-center py-8">
+                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-yellow-300 mx-auto"></div>
+                       <p className="text-gray-300 mt-2">Loading your rental listings...</p>
+                     </div>
+                                       ) : userRentalListings.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {userRentalListings.map((listing) => (
+                         <MarketplaceListingCard
+                           key={Number(listing.tileId)}
+                           listing={listing}
+                           type="rental"
+                           onCancel={cancelRentalListingAction}
+                           isOwnListing={true}
+                         />
+                       ))}
+                     </div>
+                   ) : (
+                     <div className="text-center py-8">
+                       <Clock className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                       <p className="text-gray-300">No active rental listings</p>
+                       <p className="text-gray-400 text-sm mt-1">List your tiles for rent to see them here</p>
+                     </div>
+                   )}
                  </div>
                </div>
              </motion.div>
@@ -672,19 +554,14 @@ export default function MarketplacePage() {
              </div>
 
                            <div className="space-y-6">
-                {/* Tile Image and Name */}
-                {selectedTile && tileMetadata[selectedTile.tileId.toString()]?.imageCID && (
-                  <div className="bg-white/5 rounded-xl p-6 text-center">
-                    <img 
-                      src={`https://gateway.lighthouse.storage/ipfs/${tileMetadata[selectedTile.tileId.toString()].imageCID}`} 
-                      alt={tileMetadata[selectedTile.tileId.toString()]?.name || `Tile ${selectedTile.tileId}`}
-                      className="w-32 h-32 object-contain rounded-lg border border-white/20 bg-white/10 mx-auto mb-4"
-                    />
-                    <h3 className="text-2xl font-bold text-white">
-                      {tileMetadata[selectedTile.tileId.toString()]?.name || `Tile #${Number(selectedTile.tileId)}`}
-                    </h3>
-                  </div>
-                )}
+                  {/* Tile Image and Name */}
+                  {selectedTile && (
+                    <div className="bg-white/5 rounded-xl p-6 text-center">
+                      <h3 className="text-2xl font-bold text-white">
+                        Tile #{Number(selectedTile.tileId)}
+                      </h3>
+                    </div>
+                  )}
 
                 {/* Tile Information */}
                 <div className="bg-white/5 rounded-xl p-6">

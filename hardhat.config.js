@@ -2,7 +2,15 @@
 require('@nomicfoundation/hardhat-toolbox');
 
 module.exports = {
-  solidity: '0.8.20',
+  solidity: {
+    version: '0.8.20',
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200  // Low runs value for smaller bytecode
+      }
+    }
+  },
   networks: {
     base_sepolia: {
       url: 'https://sepolia.base.org',

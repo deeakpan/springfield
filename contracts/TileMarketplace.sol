@@ -11,8 +11,7 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
     IERC20 public sprfdToken;
     address public constant PAYOUT_ADDRESS = 0x95C46439bD9559e10c4fF49bfF3e20720d93B66E;
     
-    // Platform fees (in basis points: 500 = 5%)
-    uint256 public platformFeeRate = 500; // 5%
+    uint256 public platformFeeRate; // basis points (500 = 5%)
     uint256 public constant MAX_RENTAL_DURATION = 7 days;
     
     struct SaleListing {
@@ -21,6 +20,7 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         uint256 price;
         bool isActive;
         bool isNativePayment;
+        uint256 listedAt;
     }
     
     struct RentalListing {
@@ -32,18 +32,44 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         address currentRenter;
         uint256 rentalStart;
         uint256 rentalEnd;
+        uint256 listedAt;
+    }
+
+    struct TileDetails {
+        uint256 tileId;
+        address owner;
+        string metadataUri;
+        bool isNativePayment;
+        uint256 createdAt;
+        address originalBuyer;
+        bool isForSale;
+        bool isForRent;
+        bool isCurrentlyRented;
+        uint256 salePrice;
+        uint256 rentPricePerDay;
+        address currentRenter;
+        uint256 rentalEnd;
     }
     
     // Marketplace mappings
     mapping(uint256 => SaleListing) public saleListings;
     mapping(uint256 => RentalListing) public rentalListings;
     
+    // Track listings to prevent duplicates and enable queries
+    mapping(uint256 => bool) public isListedForSale;
+    mapping(uint256 => bool) public isListedForRent;
+    mapping(address => uint256[]) public userSaleListings;
+    mapping(address => uint256[]) public userRentalListings;
+    uint256[] public allSaleListings;
+    uint256[] public allRentalListings;
+    
     // Events
     event TilePurchased(
         address indexed buyer, 
         uint256 indexed tileId, 
         uint256 amount, 
-        bool isNativePayment
+        bool isNativePayment,
+        string metadataUri
     );
     
     event TileListedForSale(
@@ -75,12 +101,16 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         address indexed seller, 
         address indexed buyer, 
         uint256 price, 
-        bool isNativePayment
+        bool isNativePayment,
+        string metadataUri
     );
+
+    event RentalExpired(uint256 indexed tileId, address indexed renter);
     
-    constructor(address _tileCore, address _sprfdToken) Ownable(msg.sender) {
+    constructor(address _tileCore, address _sprfdToken, uint256 _platformFeeRate) Ownable(msg.sender) {
         tileCore = TileCore(_tileCore);
         sprfdToken = IERC20(_sprfdToken);
+        platformFeeRate = _platformFeeRate; // e.g., 500 for 5%
     }
     
     // Buy new tile with SPRFD
@@ -94,7 +124,7 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         );
         
         tileCore.createTile(tileId, msg.sender, metadataUri, false);
-        emit TilePurchased(msg.sender, tileId, amount, false);
+        emit TilePurchased(msg.sender, tileId, amount, false, metadataUri);
     }
     
     // Buy new tile with native PEPU
@@ -106,21 +136,34 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         require(success, "Native transfer failed");
         
         tileCore.createTile(tileId, msg.sender, metadataUri, true);
-        emit TilePurchased(msg.sender, tileId, msg.value, true);
+        emit TilePurchased(msg.sender, tileId, msg.value, true, metadataUri);
     }
     
     // List tile for sale
     function listTileForSale(uint256 tileId, uint256 price, bool isNativePayment) external {
         require(tileCore.checkTileExists(tileId), "Tile does not exist");
         require(tileCore.getTile(tileId).owner == msg.sender, "Not tile owner");
+        require(!isListedForSale[tileId], "Tile already listed for sale");
+        require(price > 0, "Price must be greater than 0");
+        
+        // Check if tile is currently rented
+        RentalListing storage rental = rentalListings[tileId];
+        if (rental.currentRenter != address(0) && block.timestamp < rental.rentalEnd) {
+            revert("Cannot list rented tile for sale");
+        }
         
         saleListings[tileId] = SaleListing({
             tileId: tileId,
             seller: msg.sender,
             price: price,
             isActive: true,
-            isNativePayment: isNativePayment
+            isNativePayment: isNativePayment,
+            listedAt: block.timestamp
         });
+        
+        isListedForSale[tileId] = true;
+        userSaleListings[msg.sender].push(tileId);
+        allSaleListings.push(tileId);
         
         emit TileListedForSale(tileId, msg.sender, price, isNativePayment);
     }
@@ -130,31 +173,44 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         SaleListing storage listing = saleListings[tileId];
         require(listing.isActive, "Listing not active");
         
+        uint256 platformFee = (listing.price * platformFeeRate) / 10000;
+        uint256 sellerAmount = listing.price - platformFee;
+        
         if (listing.isNativePayment) {
             require(msg.value == listing.price, "Incorrect payment amount");
-            (bool success, ) = listing.seller.call{value: msg.value}("");
-            require(success, "Payment failed");
+            (bool success1, ) = listing.seller.call{value: sellerAmount}("");
+            (bool success2, ) = PAYOUT_ADDRESS.call{value: platformFee}("");
+            require(success1 && success2, "Payment failed");
         } else {
             require(msg.value == 0, "No native tokens should be sent for SPRFD listings");
             require(
-                sprfdToken.transferFrom(msg.sender, listing.seller, listing.price),
-                "SPRFD transfer failed"
+                sprfdToken.transferFrom(msg.sender, listing.seller, sellerAmount),
+                "SPRFD transfer to seller failed"
+            );
+            require(
+                sprfdToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
+                "SPRFD fee transfer failed"
             );
         }
+        
+        // Get metadata before transfer for event
+        string memory metadataUri = tileCore.getTile(tileId).metadataUri;
         
         // Transfer tile ownership
         tileCore.transferTile(tileId, msg.sender);
         
-        // Remove listing
-        delete saleListings[tileId];
+        // Clean up listing
+        _removeSaleListing(tileId, listing.seller);
         
-        emit TileSold(tileId, listing.seller, msg.sender, listing.price, listing.isNativePayment);
+        emit TileSold(tileId, listing.seller, msg.sender, listing.price, listing.isNativePayment, metadataUri);
     }
     
     // List tile for rent
     function listTileForRent(uint256 tileId, uint256 pricePerDay, bool isNativePayment) external {
         require(tileCore.checkTileExists(tileId), "Tile does not exist");
         require(tileCore.getTile(tileId).owner == msg.sender, "Not tile owner");
+        require(!isListedForRent[tileId], "Tile already listed for rent");
+        require(pricePerDay > 0, "Price must be greater than 0");
         
         rentalListings[tileId] = RentalListing({
             tileId: tileId,
@@ -164,8 +220,13 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
             isNativePayment: isNativePayment,
             currentRenter: address(0),
             rentalStart: 0,
-            rentalEnd: 0
+            rentalEnd: 0,
+            listedAt: block.timestamp
         });
+        
+        isListedForRent[tileId] = true;
+        userRentalListings[msg.sender].push(tileId);
+        allRentalListings.push(tileId);
         
         emit TileListedForRent(tileId, msg.sender, pricePerDay, isNativePayment);
     }
@@ -176,19 +237,26 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         
         RentalListing storage listing = rentalListings[tileId];
         require(listing.isActive, "Listing not active");
-        require(listing.currentRenter == address(0), "Tile already rented");
+        require(listing.currentRenter == address(0) || block.timestamp >= listing.rentalEnd, "Tile currently rented");
         
         uint256 totalPrice = listing.pricePerDay * duration;
+        uint256 platformFee = (totalPrice * platformFeeRate) / 10000;
+        uint256 ownerAmount = totalPrice - platformFee;
         
         if (listing.isNativePayment) {
             require(msg.value == totalPrice, "Incorrect payment amount");
-            (bool success, ) = listing.owner.call{value: msg.value}("");
-            require(success, "Payment failed");
+            (bool success1, ) = listing.owner.call{value: ownerAmount}("");
+            (bool success2, ) = PAYOUT_ADDRESS.call{value: platformFee}("");
+            require(success1 && success2, "Payment failed");
         } else {
             require(msg.value == 0, "No native tokens should be sent for SPRFD rentals");
             require(
-                sprfdToken.transferFrom(msg.sender, listing.owner, totalPrice),
-                "SPRFD transfer failed"
+                sprfdToken.transferFrom(msg.sender, listing.owner, ownerAmount),
+                "SPRFD transfer to owner failed"
+            );
+            require(
+                sprfdToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
+                "SPRFD fee transfer failed"
             );
         }
         
@@ -199,21 +267,142 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         emit TileRented(tileId, listing.owner, msg.sender, duration, totalPrice, listing.rentalStart, listing.rentalEnd);
     }
     
-    // Cancel rental listing
-    function cancelRentalListing(uint256 tileId) external {
-        RentalListing storage listing = rentalListings[tileId];
-        require(listing.owner == msg.sender, "Not listing owner");
-        require(listing.currentRenter == address(0), "Cannot cancel active rental");
+    // Auto-cleanup expired rental (can be called by anyone)
+    function cleanupExpiredRental(uint256 tileId) external {
+        RentalListing storage rental = rentalListings[tileId];
+        require(rental.currentRenter != address(0), "No active rental");
+        require(block.timestamp >= rental.rentalEnd, "Rental not expired");
         
-        delete rentalListings[tileId];
+        address expiredRenter = rental.currentRenter;
+        rental.currentRenter = address(0);
+        rental.rentalStart = 0;
+        rental.rentalEnd = 0;
+        
+        emit RentalExpired(tileId, expiredRenter);
     }
     
-    // Cancel sale listing
+    // Cancel listings
     function cancelSaleListing(uint256 tileId) external {
         SaleListing storage listing = saleListings[tileId];
         require(listing.seller == msg.sender, "Not listing seller");
+        _removeSaleListing(tileId, msg.sender);
+    }
+    
+    function cancelRentalListing(uint256 tileId) external {
+        RentalListing storage listing = rentalListings[tileId];
+        require(listing.owner == msg.sender, "Not listing owner");
+        require(listing.currentRenter == address(0) || block.timestamp >= listing.rentalEnd, "Cannot cancel active rental");
+        _removeRentalListing(tileId, msg.sender);
+    }
+    
+    // Update tile metadata (owner can't edit while rented)
+    function updateTileMetadata(uint256 tileId, string memory newMetadataUri) external {
+        require(tileCore.checkTileExists(tileId), "Tile does not exist");
+        require(tileCore.getTile(tileId).owner == msg.sender, "Only owner can update metadata");
         
+        // Check if currently rented
+        RentalListing memory rental = rentalListings[tileId];
+        require(rental.currentRenter == address(0) || block.timestamp >= rental.rentalEnd, "Cannot edit rented tile");
+        
+        tileCore.updateTileMetadata(tileId, newMetadataUri);
+    }
+    
+    // Internal cleanup functions
+    function _removeSaleListing(uint256 tileId, address seller) internal {
         delete saleListings[tileId];
+        isListedForSale[tileId] = false;
+        _removeFromArray(userSaleListings[seller], tileId);
+        _removeFromArray(allSaleListings, tileId);
+    }
+    
+    function _removeRentalListing(uint256 tileId, address owner) internal {
+        delete rentalListings[tileId];
+        isListedForRent[tileId] = false;
+        _removeFromArray(userRentalListings[owner], tileId);
+        _removeFromArray(allRentalListings, tileId);
+    }
+    
+    function _removeFromArray(uint256[] storage array, uint256 value) internal {
+        for (uint i = 0; i < array.length; i++) {
+            if (array[i] == value) {
+                array[i] = array[array.length - 1];
+                array.pop();
+                break;
+            }
+        }
+    }
+    
+    // ESSENTIAL QUERY FUNCTIONS
+    
+    // 1. Get all user owned tiles with full details
+    function getUserTilesWithDetails(address user) external view returns (TileDetails[] memory) {
+        uint256[] memory ownedTiles = tileCore.getUserOwnedTiles(user);
+        TileDetails[] memory details = new TileDetails[](ownedTiles.length);
+        
+        for (uint i = 0; i < ownedTiles.length; i++) {
+            details[i] = _getTileDetails(ownedTiles[i]);
+        }
+        return details;
+    }
+    
+    // 2. Get tile details by ID
+    function getTileDetails(uint256 tileId) external view returns (TileDetails memory) {
+        require(tileCore.checkTileExists(tileId), "Tile does not exist");
+        return _getTileDetails(tileId);
+    }
+    
+    // 3. Get all listings (for marketplace browsing)
+    function getAllSaleListings() external view returns (uint256[] memory) {
+        return allSaleListings;
+    }
+    
+    function getAllRentalListings() external view returns (uint256[] memory) {
+        return allRentalListings;
+    }
+    
+    // 4. Get user's listings
+    function getUserSaleListings(address user) external view returns (uint256[] memory) {
+        return userSaleListings[user];
+    }
+    
+    function getUserRentalListings(address user) external view returns (uint256[] memory) {
+        return userRentalListings[user];
+    }
+    
+    // 5. Get all tiles user ever bought (for frontend metadata queries)
+    function getUserBoughtTiles(address user) external view returns (uint256[] memory) {
+        return tileCore.getUserBoughtTiles(user);
+    }
+    
+    // 6. Get all created tiles (for complete marketplace overview)
+    function getAllCreatedTiles() external view returns (uint256[] memory) {
+        return tileCore.getAllCreatedTiles();
+    }
+    
+    // Internal helper
+    function _getTileDetails(uint256 tileId) internal view returns (TileDetails memory) {
+        TileCore.Tile memory tile = tileCore.getTile(tileId);
+        SaleListing memory saleListing = saleListings[tileId];
+        RentalListing memory rentalListing = rentalListings[tileId];
+        
+        bool isCurrentlyRented = rentalListing.currentRenter != address(0) && 
+                               block.timestamp < rentalListing.rentalEnd;
+        
+        return TileDetails({
+            tileId: tileId,
+            owner: tile.owner,
+            metadataUri: tile.metadataUri,
+            isNativePayment: tile.isNativePayment,
+            createdAt: tile.createdAt,
+            originalBuyer: tile.originalBuyer,
+            isForSale: saleListing.isActive,
+            isForRent: rentalListing.isActive,
+            isCurrentlyRented: isCurrentlyRented,
+            salePrice: saleListing.price,
+            rentPricePerDay: rentalListing.pricePerDay,
+            currentRenter: rentalListing.currentRenter,
+            rentalEnd: rentalListing.rentalEnd
+        });
     }
     
     // Admin functions
@@ -225,16 +414,8 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         sprfdToken = IERC20(newToken);
     }
     
-    function setPlatformFeeRate(uint256 newRate) external onlyOwner {
-        platformFeeRate = newRate;
-    }
-    
     function emergencyWithdraw() external onlyOwner {
         (bool success, ) = owner().call{value: address(this).balance}("");
         require(success, "Withdrawal failed");
     }
-    
-    function emergencyWithdrawERC20(address token) external onlyOwner {
-        IERC20(token).transfer(owner(), IERC20(token).balanceOf(address(this)));
-    }
-} 
+}

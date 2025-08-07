@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
 import { ethers } from 'ethers';
 import { useAccount, useWalletClient } from 'wagmi';
+import { CONTRACT_ADDRESSES, TILE_MARKETPLACE_ABI } from '../../config/contracts';
 
 // Simple fallback component for the center tile
 const CenterTileFallback = () => (
@@ -165,25 +166,111 @@ export default function GridPage() {
     }
   };
 
-  // Fetch all details files from API route and build tileId -> details mapping
+  // NEW: Fetch all tile details using contract functions instead of events
   const fetchTileDetails = async () => {
     try {
       setIsRefreshing(true);
-      const response = await fetch('/api/contract-tiles');
-      if (!response.ok) {
-        console.error('Failed to fetch contract tiles');
+      
+      // Check if we have the required environment variables
+      if (!process.env.NEXT_PUBLIC_RPC_URL || !CONTRACT_ADDRESSES.MARKETPLACE) {
+        console.error('Missing RPC URL or contract address');
         return;
       }
       
-      const result = await response.json();
-      if (result.success) {
-        setTileDetails(result.data);
-        const count = Object.keys(result.data).length;
-        setSoldTilesCount(count);
-        console.log('Loaded contract tiles:', Object.keys(result.data), 'Count:', count);
+      // Create provider and contract instance
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      const marketplace = new ethers.Contract(CONTRACT_ADDRESSES.MARKETPLACE, TILE_MARKETPLACE_ABI, provider);
+
+      // Step 1: Get all tile IDs
+      console.log('Fetching all created tiles...');
+      const allTileIds = await marketplace.getAllCreatedTiles();
+      console.log('All tile IDs:', allTileIds);
+
+      // Step 2: Get details for each tile
+      console.log('Fetching details for each tile...');
+      const allTilesDetails = await Promise.all(
+        allTileIds.map(async (id: bigint) => {
+          try {
+            const details = await marketplace.getTileDetails(id);
+            return {
+              tileId: id.toString(),
+              details: {
+                tileId: details.tileId.toString(),
+                owner: details.owner,
+                metadataUri: details.metadataUri,
+                isNativePayment: details.isNativePayment,
+                createdAt: details.createdAt.toString(),
+                originalBuyer: details.originalBuyer,
+                isForSale: details.isForSale,
+                isForRent: details.isForRent,
+                isCurrentlyRented: details.isCurrentlyRented,
+                salePrice: details.salePrice.toString(),
+                rentPricePerDay: details.rentPricePerDay.toString(),
+                currentRenter: details.currentRenter,
+                rentalEnd: details.rentalEnd.toString()
+              }
+            };
+          } catch (error) {
+            console.error(`Error fetching details for tile ${id}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Step 3: Build the tileDetails mapping
+      const newTileDetails: any = {};
+      let validTilesCount = 0;
+
+      // Process each tile and fetch its metadata
+      for (const tileData of allTilesDetails) {
+        if (tileData) {
+          const { tileId, details } = tileData;
+          
+          // Fetch metadata from IPFS if metadataUri exists
+          let metadata = null;
+          let imageCID = null;
+          
+          if (details.metadataUri) {
+            try {
+              console.log(`Fetching metadata for tile ${tileId} from: ${details.metadataUri}`);
+              const metadataResponse = await fetch(details.metadataUri);
+              if (metadataResponse.ok) {
+                metadata = await metadataResponse.json();
+                console.log(`Metadata for tile ${tileId}:`, metadata);
+                
+                // Extract image CID directly from metadata (not nested in image field)
+                if (metadata.imageCID) {
+                  imageCID = metadata.imageCID;
+                  console.log(`Image CID for tile ${tileId}:`, imageCID);
+                }
+              }
+            } catch (error) {
+              console.error(`Error fetching metadata for tile ${tileId}:`, error);
+            }
+          }
+          
+          newTileDetails[tileId] = {
+            ...details,
+            name: metadata?.name || `Tile ${tileId}`,
+            description: metadata?.description || '',
+            imageCID: imageCID,
+            metadata: metadata,
+            // Add social and website info from metadata
+            socials: metadata?.socials || {},
+            website: metadata?.website || null,
+            userType: metadata?.userType || 'user',
+            address: metadata?.address || details.owner
+          };
+          validTilesCount++;
+        }
       }
+
+      setTileDetails(newTileDetails);
+      setSoldTilesCount(validTilesCount);
+      console.log('Loaded contract tiles:', Object.keys(newTileDetails), 'Count:', validTilesCount);
+      
     } catch (error) {
-      console.error('Error fetching contract tiles:', error);
+      console.error('Error fetching tile details from contract:', error);
     } finally {
       setIsRefreshing(false);
     }
@@ -418,32 +505,29 @@ export default function GridPage() {
                 {filteredTiles.map((tile) => {
                   let details = tileDetails[tile.id];
                   let bgColor = '#E5E7EB';
-                  let tooltip = 'No auction';
+                  let tooltip = 'Available for purchase';
                   
-                  if (details && !details.isAuction) {
-                    tooltip = 'Auction ended';
-                    // Optionally set a special color or border for purchased tiles
-                  } else if (details && details.isAuction) {
-                    // Use auction state for auction tiles
-                    // const auctionState = auctionDetails || {};
-                    // if (auctionState.state === 'active') {
-                    //   bgColor = '#fde047';
-                    //   tooltip = 'Auction active';
-                    // } else if (auctionState.state === 'ended') {
-                    //   bgColor = '#22c55e';
-                    //   tooltip = 'Auction ended';
-                    // }
+                  // Check if this tile has been purchased (has an owner)
+                  if (details && details.owner) {
+                    // Tile has been purchased
+                    bgColor = '#22c55e'; // Green for purchased tiles
+                    tooltip = 'Owned';
+                    
+                    // If tile has metadata/image, show it
+                    if (details.imageCID) {
+                      bgColor = 'transparent'; // Let background image show
+                      console.log(`Tile ${tile.id} has image: ${details.imageCID}`);
+                    }
                   } else if (tile.isCenterArea) {
-                    // Center tile auction state
-                    // const contractDetails = auctionContractDetails;
-                    // if (contractDetails.auctionActive) {
-                    //   bgColor = '#fde047';
-                    //   tooltip = 'Auction active';
-                    // } else {
+                    // Center tile
+                    bgColor = '#FFD700';
+                    tooltip = 'Center Area';
+                  } else {
+                    // Available tile
                       bgColor = '#E5E7EB';
-                      tooltip = 'No auction';
-                    // }
+                    tooltip = 'Available for purchase';
                   }
+                  
                   return (
                   <motion.div
                     key={tile.id}
@@ -462,7 +546,7 @@ export default function GridPage() {
                         transform: tile.isCenterArea ? 'perspective(1000px) rotateX(0deg) rotateY(0deg)' : 'none',
                         transformStyle: tile.isCenterArea ? 'preserve-3d' : 'flat',
                         transition: tile.isCenterArea ? 'all 0.3s ease' : 'all 0.2s ease',
-                        boxShadow: details ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
+                      boxShadow: details && details.owner ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
                     }}
                       whileHover={tile.isCenterArea ? {
                         scale: 1.05,
@@ -481,11 +565,11 @@ export default function GridPage() {
                         if (tile.isCenterArea) {
                           // Center auction tile - do nothing, cannot be purchased
                           return;
-                        } else if (details && !details.isAuction) {
+                        } else if (details && details.owner) {
+                          // Tile is owned - show details
                           setModalDetails(details);
-                        } else if (details && details.isAuction) {
-                          // setAuctionDetails(details); // Removed auction state
                         } else {
+                          // Tile is available - open buy modal
                           handleBuyTile(tile);
                         }
                       }}
@@ -494,7 +578,7 @@ export default function GridPage() {
                   >
                     {tile.isCenterArea ? (
                         <CenterTileFallback />
-                      ) : details ? null : tile.owner ? (
+                      ) : details && details.owner ? (
                       <div className="w-full h-full flex items-center justify-center">
                         <Star className="w-2 h-2 text-black" />
                       </div>

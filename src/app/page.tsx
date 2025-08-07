@@ -164,22 +164,22 @@ export default function Home() {
       <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-blue-900 relative overflow-visible">
         <div className="max-w-7xl mx-auto relative">
           {/* Bart image in hero, top-right */}
-          <img
-            src="/cool_bart-removebg-preview.png"
-            alt="Cool Bart"
-            className="block"
-            style={{
-              position: 'absolute',
-              top: 0,
-              right: 0,
-              maxWidth: 'clamp(80px, 15vw, 220px)',
-              width: 'clamp(80px, 15vw, 220px)',
-              minWidth: 60,
-              zIndex: 20,
-              pointerEvents: 'none',
-              userSelect: 'none',
-            }}
-          />
+                                                                                       <img
+               src="/spring_bart1-removebg-preview.png"
+               alt="bart springfield"
+               className="block"
+               style={{
+                 position: 'absolute',
+                 top: 50,
+                 right: -100,
+                 maxWidth: 'clamp(200px, 40vw, 350px)',
+                 width: 'clamp(200px, 40vw, 350px)',
+                 minWidth: 180,
+                 zIndex: 20,
+                 pointerEvents: 'none',
+                 userSelect: 'none',
+               }}
+             />
           <div className="text-center mb-16">
             <motion.div
               className="inline-flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-md mb-6 border-2 border-black"

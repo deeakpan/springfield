@@ -31,6 +31,21 @@ export function ListingCard({
     ? `${formatEther(price)} ${currency}`
     : `${formatEther(price)} ${currency}/day`;
 
+  // Handle button click with debugging
+  const handleAction = () => {
+    console.log(`Button clicked for tile ${tileId}, type: ${type}, action: ${actionLabel}`);
+    console.log('onAction function:', onAction);
+    console.log('actionDisabled:', actionDisabled);
+    console.log('isRented:', isRented);
+    
+    if (!actionDisabled && !isRented) {
+      console.log('Executing action...');
+      onAction();
+    } else {
+      console.log('Action blocked - disabled or rented');
+    }
+  };
+
   return (
     <motion.div
       className="bg-white/5 rounded-lg p-4 border border-white/10 hover:border-white/20 transition-colors"
@@ -62,14 +77,14 @@ export function ListingCard({
         </div>
         
         <button
-          onClick={onAction}
+          onClick={handleAction}
           disabled={actionDisabled || isRented}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
             actionDisabled || isRented
               ? 'bg-gray-500 text-gray-300 cursor-not-allowed'
               : type === 'sale'
-              ? 'bg-green-500 hover:bg-green-600 text-white'
-              : 'bg-blue-500 hover:bg-blue-600 text-white'
+              ? 'bg-red-500 hover:bg-red-600 text-white' // Changed to red for cancel
+              : 'bg-red-500 hover:bg-red-600 text-white' // Changed to red for cancel
           }`}
         >
           {actionLabel}
@@ -77,4 +92,4 @@ export function ListingCard({
       </div>
     </motion.div>
   );
-} 
+}

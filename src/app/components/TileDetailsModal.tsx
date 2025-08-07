@@ -88,22 +88,72 @@ const TileDetailsModal: React.FC<TileDetailsModalProps> = ({ open, onClose, deta
         style={{ maxWidth: '90vw', wordBreak: 'break-word' }}
       >
         <button className="absolute top-2 right-2 text-black text-lg font-bold hover:text-red-500 transition-colors" onClick={onClose} aria-label="Close">&times;</button>
-        <img src={`https://gateway.lighthouse.storage/ipfs/${details.imageCID}`} alt="Tile" className="w-32 h-32 object-contain rounded mb-3 border border-black bg-white" />
-        <div className="text-lg font-bold mb-1 text-green-700 text-center break-words w-full">{details.name}</div>
+        
+        {/* Show image if available */}
+        {details.imageCID && (
+          <img 
+            src={`https://gateway.lighthouse.storage/ipfs/${details.imageCID}`} 
+            alt="Tile" 
+            className="w-32 h-32 object-contain rounded mb-3 border border-black bg-white" 
+            onError={(e) => {
+              console.error('Failed to load image:', details.imageCID);
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+        )}
+        
+        <div className="text-lg font-bold mb-1 text-green-700 text-center break-words w-full">
+          {details.name || `Tile ${details.tileId}`}
+        </div>
         
         <div className="mb-1 text-center w-full flex flex-wrap justify-center">
           <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
         </div>
         
-        {details.socials && (
+        {/* Show social links */}
+        {details.socials && Object.keys(details.socials).length > 0 && (
           <div className="mb-1 w-full text-center">
             <div className="font-semibold text-gray-700 mb-1">Socials:</div>
             {renderSocialLinks(details.socials)}
           </div>
         )}
-        {details.website && <div className="mb-1 text-center break-words w-full"><span className="font-semibold text-gray-700">Website:</span> <a href={details.website} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">{details.website}</a></div>}
-        {details.address && <div className="mb-1 text-center break-words w-full"><span className="font-semibold text-gray-700">Owner Address:</span> <span className="text-black break-all">{details.address}</span></div>}
-        <div className="text-xs text-gray-500 text-center mt-2 break-all w-full">CID: {details.cid}</div>
+        
+        {/* Show website if available */}
+        {details.website && (
+          <div className="mb-1 text-center break-words w-full">
+            <span className="font-semibold text-gray-700">Website:</span> 
+            <a 
+              href={details.website} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-700 underline break-all ml-1"
+            >
+              {details.website}
+            </a>
+          </div>
+        )}
+        
+        {/* Show owner address */}
+        {details.address && (
+          <div className="mb-1 text-center break-words w-full">
+            <span className="font-semibold text-gray-700">Owner Address:</span> 
+            <span className="text-black break-all ml-1">{details.address}</span>
+          </div>
+        )}
+        
+        {/* Show tile ID */}
+        {details.tileId && (
+          <div className="text-xs text-gray-500 text-center mt-2 break-all w-full">
+            Tile ID: {details.tileId}
+          </div>
+        )}
+        
+        {/* Show image CID for debugging */}
+        {details.imageCID && (
+          <div className="text-xs text-gray-500 text-center mt-1 break-all w-full">
+            Image CID: {details.imageCID}
+          </div>
+        )}
       </div>
     </div>
   );

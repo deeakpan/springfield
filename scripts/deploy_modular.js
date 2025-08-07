@@ -13,9 +13,11 @@ async function main() {
 
     // Configuration
     const SPRFD_TOKEN = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
+    const PLATFORM_FEE = 500; // 5% fee in basis points
     
     console.log("📋 Configuration:");
-    console.log(`   SPRFD Token: ${SPRFD_TOKEN}\n`);
+    console.log(`   SPRFD Token: ${SPRFD_TOKEN}`);
+    console.log(`   Platform Fee: ${PLATFORM_FEE/100}%\n`);
 
     // Step 1: Deploy TileCore
     console.log("🔧 Step 1: Deploying TileCore...");
@@ -30,7 +32,8 @@ async function main() {
     const TileMarketplace = await ethers.getContractFactory("TileMarketplace");
     const tileMarketplace = await TileMarketplace.deploy(
         await tileCore.getAddress(),
-        SPRFD_TOKEN
+        SPRFD_TOKEN,
+        PLATFORM_FEE
     );
     await tileMarketplace.waitForDeployment();
     
@@ -57,6 +60,7 @@ async function main() {
     console.log("• TileMarketplace handles all buying, selling, and renting");
     console.log("• TileCore manages tile ownership and metadata");
     console.log("• Both contracts work together seamlessly");
+    console.log(`• Platform takes ${PLATFORM_FEE/100}% fee on all sales and rentals`);
 
     console.log("\n💡 MAIN CONTRACT FOR FRONTEND:");
     console.log(`   ${await tileMarketplace.getAddress()}`);
@@ -72,4 +76,4 @@ main()
         console.error("\n❌ Deployment failed:");
         console.error(error);
         process.exit(1);
-    }); 
+    });
