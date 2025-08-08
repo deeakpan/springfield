@@ -469,7 +469,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="bg-gray-900 text-white py-16 px-4 sm:px-6 lg:px-8 border-t-2 border-black overflow-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                     <div className="grid grid-cols-1 md:grid-cols-5 gap-8">
             <div>
               <div className="flex items-center space-x-3 mb-6">
                 <div className="w-10 h-10 rounded-full bg-green-500 border-2 border-black flex items-center justify-center">
@@ -488,29 +488,33 @@ export default function Home() {
                 <li><a href="#" className="hover:text-green-400 transition-colors">Features</a></li>
                 <li><a href="#" className="hover:text-green-400 transition-colors">Grid Explorer</a></li>
                 <li><a href="#" className="hover:text-green-400 transition-colors">Pricing</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Documentation</a></li>
               </ul>
             </div>
 
             <div>
               <h3 className="text-lg font-bold mb-4">Community</h3>
               <ul className="space-y-3 text-gray-300">
-                <li><a href="#" className="hover:text-green-400 transition-colors">Discord</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Twitter</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Telegram</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Blog</a></li>
+                <li><a href="https://x.com/PEPUSpring2025?t=04sxvbharyQpKze1XWRCCg&s=35" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">X (Twitter)</a></li>
+                <li><a href="https://t.me/PenkSpring" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">Telegram</a></li>
+                <li><a href="https://t.me/d2eakpan" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">Support Telegram</a></li>
               </ul>
             </div>
 
-            <div>
-              <h3 className="text-lg font-bold mb-4">Support</h3>
-              <ul className="space-y-3 text-gray-300">
-                <li><a href="#" className="hover:text-green-400 transition-colors">Help Center</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Contact Us</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Status</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Bug Report</a></li>
-              </ul>
-            </div>
+                         <div>
+               <h3 className="text-lg font-bold mb-4">Products</h3>
+               <ul className="space-y-3 text-gray-300">
+                 <li><a href="https://pepubank.net" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">PEPU Bank</a></li>
+                 <li><a href="https://superbridge.pepubank.net" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">Superbridge</a></li>
+               </ul>
+             </div>
+
+             <div>
+               <h3 className="text-lg font-bold mb-4">Support</h3>
+               <ul className="space-y-3 text-gray-300">
+                 <li><a href="mailto:Springfieldteam12@gmail.com" className="hover:text-green-400 transition-colors">Contact Us</a></li>
+                 <li><a href="https://t.me/d2eakpan" target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">Bug Report</a></li>
+               </ul>
+             </div>
           </div>
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
