@@ -8,7 +8,7 @@ import TileDetailsModal from '../components/TileDetailsModal';
 import OwnedTileCard from '../../components/OwnedTileCard';
 import MarketplaceListingCard from '../../components/MarketplaceListingCard';
 import { motion } from 'framer-motion';
-import { RefreshCw, Plus, ShoppingCart, Home, Users, Map, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye, X, Store, ShoppingBag, Users as UsersIcon, Coins as CoinsIcon, Calendar as CalendarIcon } from 'lucide-react';
+import { RefreshCw, Plus, ShoppingCart, Home, Users, Map, Grid3X3, Wallet, Tag, Clock, DollarSign, Package, User, Settings, Info, Grid, Calendar, Coins, Eye, X, Store, ShoppingBag, Users as UsersIcon, Coins as CoinsIcon, Calendar as CalendarIcon, Menu } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { formatEther } from 'viem';
 
@@ -24,6 +24,7 @@ export default function MarketplacePage() {
   const [rentDuration, setRentDuration] = useState('1');
   const [isNativePayment, setIsNativePayment] = useState(true);
   const [showComingSoon, setShowComingSoon] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   const {
     activeSaleListings,
@@ -218,15 +219,71 @@ export default function MarketplacePage() {
               </a>
             </motion.div>
 
-            <motion.div
-              className="flex items-center space-x-2 sm:space-x-4"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Mobile menu button */}
+              <motion.button
+                className="md:hidden p-2 rounded-md text-white hover:text-green-400 transition-colors"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </motion.button>
+
               <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
-            </motion.div>
+            </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          <motion.div
+            className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ 
+              opacity: mobileMenuOpen ? 1 : 0, 
+              height: mobileMenuOpen ? 'auto' : 0 
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="px-2 pt-2 pb-3 space-y-1 bg-blue-600 border-t-2 border-black">
+              <a 
+                href="/" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Home className="w-4 h-4" />
+                Home
+              </a>
+              <a 
+                href="/grid" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Grid3X3 className="w-4 h-4" />
+                Grid
+              </a>
+              <a 
+                href="/marketplace" 
+                className="block px-3 py-2 text-green-400 font-medium border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Marketplace
+              </a>
+              <a 
+                href="/refund" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Coins className="w-4 h-4" />
+                Refunds
+              </a>
+            </div>
+          </motion.div>
         </div>
       </nav>
 

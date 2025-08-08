@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useState, Suspense } from 'react';
-import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw, Coins } from 'lucide-react';
+import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw, Coins, Menu, X } from 'lucide-react';
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
@@ -153,6 +153,7 @@ export default function GridPage() {
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [marketData, setMarketData] = useState<any>({ marketCapFormatted: '$0' });
   const [soldTilesCount, setSoldTilesCount] = useState(0);
   const [userOwnedTilesCount, setUserOwnedTilesCount] = useState(0);
@@ -552,24 +553,83 @@ export default function GridPage() {
               </a>
             </motion.div>
 
-            <motion.div
-              className="flex items-center space-x-2 sm:space-x-4"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <button
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Mobile menu button */}
+              <motion.button
+                className="md:hidden p-2 rounded-md text-white hover:text-green-400 transition-colors"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </motion.button>
+
+              <motion.button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
                 className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 bg-yellow-400 text-black rounded-md font-bold hover:bg-yellow-300 transition-colors disabled:opacity-50 text-xs sm:text-sm"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
               >
                 <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh Grid'}</span>
                 <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
-              </button>
+              </motion.button>
               <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
-            </motion.div>
+            </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          <motion.div
+            className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ 
+              opacity: mobileMenuOpen ? 1 : 0, 
+              height: mobileMenuOpen ? 'auto' : 0 
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="px-2 pt-2 pb-3 space-y-1 bg-blue-600 border-t-2 border-black">
+              <a 
+                href="/" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Home className="w-4 h-4" />
+                Home
+              </a>
+              <a 
+                href="#grid" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Grid3X3 className="w-4 h-4" />
+                Grid
+              </a>
+              <a 
+                href="/marketplace" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Marketplace
+              </a>
+              <a 
+                href="/refund" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Coins className="w-4 h-4" />
+                Refunds
+              </a>
+            </div>
+          </motion.div>
         </div>
       </nav>
 

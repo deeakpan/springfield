@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useState } from "react";
 import {
   Map,
   Coins,
@@ -15,7 +16,9 @@ import {
   Building2,
   Wallet,
   Grid3X3,
-  MousePointer
+  MousePointer,
+  Menu,
+  X
 } from "lucide-react";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
@@ -85,26 +88,29 @@ const MiniGridPreview = () => (
 );
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-blue-900 text-white">
+    <div className="min-h-screen bg-blue-900 text-white overflow-x-hidden">
       {/* Navigation */}
-      <nav className="fixed top-0 w-full z-50 bg-blue-500 border-b-2 border-black shadow-lg">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
+      <nav className="fixed top-0 w-full z-50 bg-blue-500 border-b-2 border-black shadow-lg overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+          <div className="flex justify-between items-center h-16 min-w-0">
             <motion.div
-              className="flex items-center space-x-3"
+              className="flex items-center space-x-3 min-w-0 flex-shrink-0"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5 }}
             >
-              <div className="w-10 h-10 rounded-full bg-green-500 border-2 border-black flex items-center justify-center shadow-lg">
+              <div className="w-10 h-10 rounded-full bg-green-500 border-2 border-black flex items-center justify-center shadow-lg flex-shrink-0">
                 <Map className="w-6 h-6 text-black" />
               </div>
-              <span className="text-2xl font-bold text-yellow-300">
+              <span className="text-xl sm:text-2xl font-bold text-yellow-300 truncate">
                 Springfield
               </span>
             </motion.div>
             
+            {/* Desktop Navigation */}
             <motion.div
               className="hidden md:flex space-x-8"
               initial={{ opacity: 0, x: 20 }}
@@ -117,68 +123,128 @@ export default function Home() {
               <a href="/refund" className="text-white hover:text-green-400 font-medium transition-colors">Refunds</a>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <ConnectButton.Custom>
-                {({ account, chain, openConnectModal, openAccountModal, authenticationStatus, mounted }) => {
-                  const ready = mounted && authenticationStatus !== 'loading';
-                  const connected =
-                    ready &&
-                    account &&
-                    chain &&
-                    (!authenticationStatus || authenticationStatus === 'authenticated');
-                  if (!connected) {
+            <div className="flex items-center space-x-2 sm:space-x-4 min-w-0">
+              {/* Mobile menu button */}
+              <motion.button
+                className="md:hidden p-2 rounded-md text-white hover:text-green-400 transition-colors flex-shrink-0"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </motion.button>
+
+              <motion.div
+                className="flex-shrink-0"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <ConnectButton.Custom>
+                  {({ account, chain, openConnectModal, openAccountModal, authenticationStatus, mounted }) => {
+                    const ready = mounted && authenticationStatus !== 'loading';
+                    const connected =
+                      ready &&
+                      account &&
+                      chain &&
+                      (!authenticationStatus || authenticationStatus === 'authenticated');
+                    if (!connected) {
+                      return (
+                        <button
+                          onClick={openConnectModal}
+                          type="button"
+                          className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
+                        >
+                          <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
+                          Connect Wallet
+                        </button>
+                      );
+                    }
                     return (
                       <button
-                        onClick={openConnectModal}
+                        onClick={openAccountModal}
                         type="button"
                         className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
                       >
                         <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
-                        Connect Wallet
+                        {account.displayName}
                       </button>
                     );
-                  }
-                  return (
-                    <button
-                      onClick={openAccountModal}
-                      type="button"
-                      className="px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-base rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2 max-w-[100px] sm:max-w-none truncate"
-                    >
-                      <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
-                      {account.displayName}
-                    </button>
-                  );
-                }}
-              </ConnectButton.Custom>
-            </motion.div>
+                  }}
+                </ConnectButton.Custom>
+              </motion.div>
+            </div>
           </div>
+
+          {/* Mobile Navigation Menu */}
+          <motion.div
+            className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'} overflow-hidden`}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ 
+              opacity: mobileMenuOpen ? 1 : 0, 
+              height: mobileMenuOpen ? 'auto' : 0 
+            }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="px-2 pt-2 pb-3 space-y-1 bg-blue-600 border-t-2 border-black w-full">
+              <a 
+                href="#features" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Features
+              </a>
+              <a 
+                href="/grid" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Grid
+              </a>
+              <a 
+                href="/marketplace" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Marketplace
+              </a>
+              <a 
+                href="/refund" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Refunds
+              </a>
+            </div>
+          </motion.div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-blue-900 relative overflow-visible">
+      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 bg-blue-900 relative overflow-hidden">
         <div className="max-w-7xl mx-auto relative">
-          {/* Bart image in hero, top-right */}
-                                                                                       <img
-               src="/spring_bart1-removebg-preview.png"
-               alt="bart springfield"
-               className="block"
-               style={{
-                 position: 'absolute',
-                 top: 50,
-                 right: -100,
-                 maxWidth: 'clamp(200px, 40vw, 350px)',
-                 width: 'clamp(200px, 40vw, 350px)',
-                 minWidth: 180,
-                 zIndex: 20,
-                 pointerEvents: 'none',
-                 userSelect: 'none',
-               }}
-             />
+                     {/* Bart image in hero, top-right */}
+           <img
+             src="/spring_bart1-removebg-preview.png"
+             alt="bart springfield"
+             className="hidden md:block"
+             style={{
+               position: 'absolute',
+               top: 50,
+               right: -100,
+               maxWidth: 'clamp(200px, 40vw, 350px)',
+               width: 'clamp(200px, 40vw, 350px)',
+               minWidth: 180,
+               zIndex: 20,
+               pointerEvents: 'none',
+               userSelect: 'none',
+             }}
+           />
           <div className="text-center mb-16">
             <motion.div
               className="inline-flex items-center space-x-2 bg-yellow-500 text-black px-4 py-2 rounded-md mb-6 border-2 border-black"
@@ -259,7 +325,7 @@ export default function Home() {
       </section>
 
       {/* Tokenomics Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-800">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-800 overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <motion.div
             className="text-center mb-16"
@@ -329,7 +395,7 @@ export default function Home() {
             <FeatureCard
               icon={Star}
               title="Staking Rewards"
-              description="Stake $SPRING tokens to earn rewards and participate in governance. Burning mechanism creates deflationary pressure."
+              description="Stake $PENK tokens to earn rewards and participate in governance. Burning mechanism creates deflationary pressure."
               color="bg-gradient-to-br from-yellow-100 to-yellow-200"
               gradient="bg-yellow-500"
               delay={0.8}
@@ -347,7 +413,7 @@ export default function Home() {
       </section>
 
       {/* Stats Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-900">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-900 overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <motion.div
             className="text-center mb-16"
@@ -371,7 +437,7 @@ export default function Home() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-900">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-900 overflow-hidden">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -401,7 +467,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-white py-16 px-4 sm:px-6 lg:px-8 border-t-2 border-black">
+      <footer className="bg-gray-900 text-white py-16 px-4 sm:px-6 lg:px-8 border-t-2 border-black overflow-hidden">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
