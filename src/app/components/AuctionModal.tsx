@@ -55,6 +55,8 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     website: '',
     description: '',
     qrPreference: false, // false = QR code (link), true = direct image
+    tokenSymbol: '', // Optional token symbol
+    contractAddress: '', // Optional contract address
   });
   const [userSocialPlatform, setUserSocialPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
   const [userSocialValue, setUserSocialValue] = useState('');
@@ -398,6 +400,8 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
         timestamp: Date.now(),
         auctionId: auctionInfo.auctionId,
         website: form.website || null,
+        tokenSymbol: form.tokenSymbol || null, // Optional token symbol
+        contractAddress: form.contractAddress || null, // Optional contract address
         socials: userType === 'user' ? {
           [userSocialPlatform]: userSocialValue
         } : {
@@ -587,7 +591,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     if (isOpen) {
       setStep('form');
       setUserType('');
-      setForm({ name: '', bidAmount: '', website: '', description: '', qrPreference: false });
+      setForm({ name: '', bidAmount: '', website: '', description: '', qrPreference: false, tokenSymbol: '', contractAddress: '' });
       setUserSocialValue('');
       setProjectPrimaryValue('');
       setProjectAdditionalLinks(['', '']);
@@ -981,6 +985,20 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                        errs.website = 'Must be a valid website URL';
                      }
                    }
+
+                   // Optional token symbol validation
+                   if (form.tokenSymbol) {
+                     if (!/^[A-Z0-9]{1,10}$/.test(form.tokenSymbol)) {
+                       errs.tokenSymbol = 'Token symbol must be 1-10 uppercase letters/numbers';
+                     }
+                   }
+
+                   // Optional contract address validation
+                   if (form.contractAddress) {
+                     if (!/^0x[a-fA-F0-9]{40}$/.test(form.contractAddress)) {
+                       errs.contractAddress = 'Must be a valid Ethereum contract address';
+                     }
+                   }
                    setErrors(errs);
                    if (Object.keys(errs).length === 0) {
                      handleBid();
@@ -1135,6 +1153,36 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                            onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
                          />
                          {errors.website && <div className="text-red-500 text-sm mt-1">{errors.website}</div>}
+                       </div>
+
+                       {/* Optional Token Symbol */}
+                       <div className="flex flex-col w-full text-left">
+                         <label className="mb-1 font-semibold text-black">Token Symbol (optional)</label>
+                         <input
+                           className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                           placeholder="e.g., PEPE, DOGE, SHIB"
+                           value={form.tokenSymbol}
+                           onChange={e => setForm(f => ({ ...f, tokenSymbol: e.target.value }))}
+                         />
+                         <div className="text-xs text-gray-500 mt-1">
+                           Your project's token symbol (if applicable)
+                         </div>
+                         {errors.tokenSymbol && <div className="text-red-500 text-sm mt-1">{errors.tokenSymbol}</div>}
+                       </div>
+
+                       {/* Optional Contract Address */}
+                       <div className="flex flex-col w-full text-left">
+                         <label className="mb-1 font-semibold text-black">Contract Address (optional)</label>
+                         <input
+                           className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                           placeholder="0x..."
+                           value={form.contractAddress}
+                           onChange={e => setForm(f => ({ ...f, contractAddress: e.target.value }))}
+                         />
+                         <div className="text-xs text-gray-500 mt-1">
+                           Your project's token contract address (if applicable)
+                         </div>
+                         {errors.contractAddress && <div className="text-red-500 text-sm mt-1">{errors.contractAddress}</div>}
                        </div>
 
                         {/* QR Display Preference */}
