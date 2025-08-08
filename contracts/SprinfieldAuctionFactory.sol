@@ -28,6 +28,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         uint256 highestBidAmount;
         bool isActive;
         bool hasWinner;
+        bool hasBeenExtendedForNoBids;
         Bid winningBid;
     }
 
@@ -40,7 +41,8 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     uint256 public auctionEndTime;
     uint256 public constant AUCTION_DURATION = 5 minutes; // TESTING: 5 minutes instead of 24 hours
     uint256 public constant EXTENSION_TIME = 2 minutes; // TESTING: 2 minutes instead of 4 minutes
-    uint256 public constant LAST_MINUTE_THRESHOLD = 10 seconds; //  10 seconds
+    uint256 public constant LAST_MINUTE_THRESHOLD = 10; // 10 seconds
+    uint256 public constant NO_BID_EXTENSION_TIME = 12 hours; // 12 hours extension if no bids
     
     // ERC20 token for bidding
     IERC20 public biddingToken;
@@ -86,7 +88,14 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     event AuctionExtended(
         uint256 indexed auctionId,
         uint256 oldEndTime,
-        uint256 newEndTime
+        uint256 newEndTime,
+        string reason
+    );
+    
+    event AuctionEndedNoBids(
+        uint256 indexed auctionId,
+        uint256 endTime,
+        bool wasExtended
     );
     
     event AuctionEnded(
@@ -172,6 +181,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
             highestBidAmount: 0,
             isActive: true,
             hasWinner: false,
+            hasBeenExtendedForNoBids: false,
             winningBid: Bid({
                 bidder: address(0),
                 name: "",
@@ -209,7 +219,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
             uint256 oldEndTime = auctionEndTime;
             auctionEndTime += EXTENSION_TIME;
             auctions[currentAuctionId].endTime = auctionEndTime;
-            emit AuctionExtended(currentAuctionId, oldEndTime, auctionEndTime);
+            emit AuctionExtended(currentAuctionId, oldEndTime, auctionEndTime, "Last minute bid");
         }
         
         // Track refunds per auction
@@ -270,7 +280,24 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         );
     }
 
-    // Bot calls this after 24 hours (+ any extensions)
+    // Bot calls this to extend auction by 12 hours if no bids received
+    function extendAuctionForNoBids(uint256 _auctionId) external onlyBot {
+        require(currentState == AuctionState.ACTIVE, "Auction not active");
+        require(_auctionId == currentAuctionId, "Invalid auction ID");
+        require(block.timestamp >= auctionEndTime, "Auction not ended yet");
+        require(auctionBids[_auctionId].length == 0, "Auction has bids - cannot extend");
+        require(!auctions[_auctionId].hasBeenExtendedForNoBids, "Already extended for no bids");
+        
+        // Extend auction by 12 hours
+        uint256 oldEndTime = auctionEndTime;
+        auctionEndTime += NO_BID_EXTENSION_TIME;
+        auctions[currentAuctionId].endTime = auctionEndTime;
+        auctions[currentAuctionId].hasBeenExtendedForNoBids = true;
+        
+        emit AuctionExtended(currentAuctionId, oldEndTime, auctionEndTime, "No bids received - 12 hour extension");
+    }
+
+    // Bot calls this after auction duration (+ any extensions)
     function endAuction() external onlyBot {
         require(currentState == AuctionState.ACTIVE, "Auction not active");
         require(block.timestamp >= auctionEndTime, "Auction still ongoing");
@@ -312,6 +339,13 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
                 auctions[currentAuctionId].totalBids,
                 auctions[currentAuctionId].totalAmount,
                 auctions[currentAuctionId].uniqueBidders
+            );
+        } else {
+            // No bids even after potential extension
+            emit AuctionEndedNoBids(
+                currentAuctionId, 
+                block.timestamp, 
+                auctions[currentAuctionId].hasBeenExtendedForNoBids
             );
         }
         
@@ -390,6 +424,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
                 highestBidAmount: 0,
                 isActive: false,
                 hasWinner: false,
+                hasBeenExtendedForNoBids: false,
                 winningBid: Bid({
                     bidder: address(0),
                     name: "",
@@ -473,6 +508,12 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
             }
         }
         return total;
+    }
+
+    // Check if auction has been extended for no bids
+    function hasAuctionBeenExtendedForNoBids(uint256 _auctionId) external view returns (bool) {
+        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        return auctions[_auctionId].hasBeenExtendedForNoBids;
     }
 
     // Admin functions

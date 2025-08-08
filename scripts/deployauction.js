@@ -8,13 +8,13 @@ async function main() {
     console.log(`🔑 Deploying with account: ${deployer.address}`);
     
     // Check deployer balance
-    const balance = await deployer.getBalance();
-    console.log(`💰 Account balance: ${ethers.utils.formatEther(balance)} ETH\n`);
+    const balance = await deployer.provider.getBalance(deployer.address);
+    console.log(`💰 Account balance: ${ethers.formatEther(balance)} ETH\n`);
 
     // ========== CONFIGURATION ==========
     const CONFIG = {
         // Bot wallet address (create a new wallet for this)
-        BOT_ADDRESS: "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E", // REPLACE WITH ACTUAL BOT ADDRESS
+        BOT_ADDRESS: "0x73af5be3db46ce3b7c50fd833b9c60180f339449", // REPLACE WITH ACTUAL BOT ADDRESS
         
         // Where winning auction bids go
         BID_RECIPIENT: "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E", // Your payout address
@@ -49,20 +49,17 @@ async function main() {
     const auction = await WeeklyAuction.deploy(
         CONFIG.BOT_ADDRESS,
         CONFIG.BID_RECIPIENT,
-        CONFIG.BIDDING_TOKEN,
-        {
-            gasLimit: 3000000, // Set gas limit
-        }
+        CONFIG.BIDDING_TOKEN
     );
 
     console.log("⏳ Waiting for deployment...");
-    await auction.deployed();
+    await auction.waitForDeployment();
 
     console.log("\n✅ CONTRACT DEPLOYED SUCCESSFULLY!");
     console.log("=====================================");
-    console.log(`📍 Contract Address: ${auction.address}`);
-    console.log(`🔗 Transaction Hash: ${auction.deployTransaction.hash}`);
-    console.log(`⛽ Gas Used: ${auction.deployTransaction.gasLimit.toString()}`);
+    console.log(`📍 Contract Address: ${await auction.getAddress()}`);
+    console.log(`🔗 Transaction Hash: ${auction.deploymentTransaction().hash}`);
+    console.log(`⛽ Gas Used: ${auction.deploymentTransaction().gasLimit.toString()}`);
 
     // ========== VERIFY DEPLOYMENT ==========
     console.log("\n🔍 Verifying deployment...");
@@ -113,24 +110,25 @@ async function main() {
 
     // ========== SAVE DEPLOYMENT INFO ==========
     const deploymentInfo = {
-        network: network.name,
-        contractAddress: auction.address,
+        network: (await ethers.provider.getNetwork()).name,
+        contractAddress: await auction.getAddress(),
         deployerAddress: deployer.address,
         botAddress: CONFIG.BOT_ADDRESS,
         bidRecipient: CONFIG.BID_RECIPIENT,
         biddingToken: CONFIG.BIDDING_TOKEN,
-        deploymentHash: auction.deployTransaction.hash,
+        deploymentHash: auction.deploymentTransaction().hash,
         timestamp: new Date().toISOString(),
-        gasUsed: auction.deployTransaction.gasLimit.toString()
+        gasUsed: auction.deploymentTransaction().gasLimit.toString()
     };
 
     console.log("\n💾 Deployment info saved to memory. Copy this for your records:");
     console.log(JSON.stringify(deploymentInfo, null, 2));
 
     // ========== OPTIONAL: VERIFY ON EXPLORER ==========
+    const network = await ethers.provider.getNetwork();
     if (network.name !== "hardhat" && network.name !== "localhost") {
         console.log("\n🔍 To verify on block explorer, run:");
-        console.log(`npx hardhat verify --network ${network.name} ${auction.address} "${CONFIG.BOT_ADDRESS}" "${CONFIG.BID_RECIPIENT}" "${CONFIG.BIDDING_TOKEN}"`);
+        console.log(`npx hardhat verify --network pepe_unchained_v2_testnet ${auction.address} "${CONFIG.BOT_ADDRESS}" "${CONFIG.BID_RECIPIENT}" "${CONFIG.BIDDING_TOKEN}"`);
     }
 
     console.log("\n🎉 Deployment completed successfully!");

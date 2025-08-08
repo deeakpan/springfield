@@ -6,6 +6,7 @@ import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw } from 'lucid
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
+import AuctionModal from '../components/AuctionModal';
 import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
 import { ethers } from 'ethers';
@@ -304,6 +305,9 @@ export default function GridPage() {
   // Add state for modal visibility and user type
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalUserType, setModalUserType] = useState<'project' | 'user' | null>(null);
+  
+  // Auction modal state
+  const [isAuctionModalOpen, setIsAuctionModalOpen] = useState(false);
 
   // Add useState for connection status
   const [isWalletConnected, setIsWalletConnected] = useState(false);
@@ -563,7 +567,8 @@ export default function GridPage() {
                       }}
                       onClick={() => {
                         if (tile.isCenterArea) {
-                          // Center auction tile - do nothing, cannot be purchased
+                          // Center auction tile - open auction modal
+                          setIsAuctionModalOpen(true);
                           return;
                         } else if (details && details.owner) {
                           // Tile is owned - show details
@@ -620,12 +625,7 @@ export default function GridPage() {
                 <div className="text-xs text-gray-300">ID: {hoveredTile.id}</div>
                 {hoveredTile.isCenterArea ? (
                   (() => {
-                    // const contractDetails = auctionContractDetails;
-                    // if (contractDetails.auctionActive) {
-                    //   return <div className="text-green-400 font-bold text-base">✅ Auction Active</div>;
-                    // } else {
-                      return <div className="text-gray-400 font-bold text-base">⏳ No Auction</div>;
-                    // }
+                    return <div className="text-yellow-400 font-bold text-base">🎯 Click to View Auction</div>;
                   })()
                 ) : (
                   (() => {
@@ -659,6 +659,22 @@ export default function GridPage() {
 
       {/* Modal for purchased tile details */}
       <TileDetailsModal open={!!modalDetails} onClose={() => setModalDetails(null)} details={modalDetails} />
+      
+      {/* Auction Modal */}
+      <AuctionModal
+        isOpen={isAuctionModalOpen}
+        onClose={() => setIsAuctionModalOpen(false)}
+        tileData={{
+          id: "center-auction",
+          name: "Center Auction Tile",
+          price: "5000",
+          image: "/api/placeholder/400/300",
+          description: "Special auction tile in the center of the grid. Bid with SPRFD tokens to win this premium location!",
+          location: "Center (17,8)",
+          size: "7x5",
+          type: "Auction"
+        }}
+      />
       
       {/* Auction Status Component */}
       {/* Removed AuctionStatus component */}

@@ -4,6 +4,7 @@ export const CONTRACT_ADDRESSES = {
   MARKETPLACE: process.env.NEXT_PUBLIC_TILE_CONTRACT || "0x...", // TileMarketplace contract address
   TILE_CORE: process.env.NEXT_PUBLIC_TILE_CORE || "0x...", // TileCore contract address
   SPRFD_TOKEN: "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1", // From deployment script
+  AUCTION: process.env.NEXT_PUBLIC_AUCTION_CONTRACT || "0xE9C88bE11C1605e1Db4A198E64c5B118E9a0bD3f", // Auction contract address
 } as const;
 
 // Validate that contract addresses are set (in development)
