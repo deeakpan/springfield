@@ -56,6 +56,9 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     mapping(address => mapping(uint256 => uint256)) public bidderRefunds; // bidder => auctionId => amount
     mapping(address => mapping(uint256 => bool)) public hasRefunded; // bidder => auctionId => claimed
     
+    // QR Preference tracking - winner => auctionId => preference (true = image, false = link)
+    mapping(address => mapping(uint256 => bool)) public qrPreferences; // winner => auctionId => isImage
+    
     // Stats tracking
     mapping(address => bool) private uniqueBidderTracker;
     address[] private currentAuctionBidders;
@@ -134,6 +137,12 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         uint256 currentHighestAmount
     );
 
+    event QRPreferenceSet(
+        uint256 indexed auctionId,
+        address indexed winner,
+        bool isImage
+    );
+
     modifier onlyBot() {
         require(msg.sender == botAddress, "Only bot can call this");
         _;
@@ -202,7 +211,8 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         uint256 _amount,
         string memory _name,
         string memory _description,
-        string memory _metadataUrl
+        string memory _metadataUrl,
+        bool _qrPreference
     ) external nonReentrant {
         require(currentState == AuctionState.ACTIVE, "Auction not active");
         require(_amount > 0, "Bid must be greater than 0");
@@ -225,6 +235,9 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         // Track refunds per auction
         bidderRefunds[msg.sender][currentAuctionId] += _amount;
         hasRefunded[msg.sender][currentAuctionId] = false;
+        
+        // Store QR preference for this bidder
+        qrPreferences[msg.sender][currentAuctionId] = _qrPreference;
         
         // Track unique bidders
         if (!uniqueBidderTracker[msg.sender]) {
@@ -514,6 +527,24 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     function hasAuctionBeenExtendedForNoBids(uint256 _auctionId) external view returns (bool) {
         require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
         return auctions[_auctionId].hasBeenExtendedForNoBids;
+    }
+
+    // QR Preference functions
+    function setQRPreference(uint256 _auctionId, bool _isImage) external {
+        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(auctions[_auctionId].hasWinner, "Auction has no winner");
+        require(auctions[_auctionId].winningBid.bidder == msg.sender, "Only winner can set QR preference");
+        
+        qrPreferences[msg.sender][_auctionId] = _isImage;
+        emit QRPreferenceSet(_auctionId, msg.sender, _isImage);
+    }
+    
+    function getQRPreference(uint256 _auctionId, address _winner) external view returns (bool) {
+        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(auctions[_auctionId].hasWinner, "Auction has no winner");
+        require(auctions[_auctionId].winningBid.bidder == _winner, "Address is not the winner");
+        
+        return qrPreferences[_winner][_auctionId];
     }
 
     // Admin functions

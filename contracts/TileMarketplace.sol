@@ -8,7 +8,7 @@ import "./TileCore.sol";
 
 contract TileMarketplace is Ownable, ReentrancyGuard {
     TileCore public tileCore;
-    IERC20 public sprfdToken;
+    IERC20 public springToken;
     address public constant PAYOUT_ADDRESS = 0x95C46439bD9559e10c4fF49bfF3e20720d93B66E;
     
     uint256 public platformFeeRate; // basis points (500 = 5%)
@@ -107,20 +107,20 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
 
     event RentalExpired(uint256 indexed tileId, address indexed renter);
     
-    constructor(address _tileCore, address _sprfdToken, uint256 _platformFeeRate) Ownable(msg.sender) {
+    constructor(address _tileCore, address _springToken, uint256 _platformFeeRate) Ownable(msg.sender) {
         tileCore = TileCore(_tileCore);
-        sprfdToken = IERC20(_sprfdToken);
+        springToken = IERC20(_springToken);
         platformFeeRate = _platformFeeRate; // e.g., 500 for 5%
     }
     
-    // Buy new tile with SPRFD
+    // Buy new tile with SPRING
     function buyTile(uint256 amount, uint256 tileId, string memory metadataUri) external nonReentrant {
         require(!tileCore.checkTileExists(tileId), "Tile already exists");
         require(amount > 0, "Amount must be greater than 0");
         
         require(
-            sprfdToken.transferFrom(msg.sender, PAYOUT_ADDRESS, amount),
-            "SPRFD transfer failed"
+            springToken.transferFrom(msg.sender, PAYOUT_ADDRESS, amount),
+            "SPRING transfer failed"
         );
         
         tileCore.createTile(tileId, msg.sender, metadataUri, false);
@@ -182,14 +182,14 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
             (bool success2, ) = PAYOUT_ADDRESS.call{value: platformFee}("");
             require(success1 && success2, "Payment failed");
         } else {
-            require(msg.value == 0, "No native tokens should be sent for SPRFD listings");
+            require(msg.value == 0, "No native tokens should be sent for SPRING listings");
             require(
-                sprfdToken.transferFrom(msg.sender, listing.seller, sellerAmount),
-                "SPRFD transfer to seller failed"
+                springToken.transferFrom(msg.sender, listing.seller, sellerAmount),
+                "SPRING transfer to seller failed"
             );
             require(
-                sprfdToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
-                "SPRFD fee transfer failed"
+                springToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
+                "SPRING fee transfer failed"
             );
         }
         
@@ -249,14 +249,14 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
             (bool success2, ) = PAYOUT_ADDRESS.call{value: platformFee}("");
             require(success1 && success2, "Payment failed");
         } else {
-            require(msg.value == 0, "No native tokens should be sent for SPRFD rentals");
+            require(msg.value == 0, "No native tokens should be sent for SPRING rentals");
             require(
-                sprfdToken.transferFrom(msg.sender, listing.owner, ownerAmount),
-                "SPRFD transfer to owner failed"
+                springToken.transferFrom(msg.sender, listing.owner, ownerAmount),
+                "SPRING transfer to owner failed"
             );
             require(
-                sprfdToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
-                "SPRFD fee transfer failed"
+                springToken.transferFrom(msg.sender, PAYOUT_ADDRESS, platformFee),
+                "SPRING fee transfer failed"
             );
         }
         
@@ -410,8 +410,8 @@ contract TileMarketplace is Ownable, ReentrancyGuard {
         tileCore = TileCore(newTileCore);
     }
     
-    function setSprfdToken(address newToken) external onlyOwner {
-        sprfdToken = IERC20(newToken);
+    function setSpringToken(address newToken) external onlyOwner {
+        springToken = IERC20(newToken);
     }
     
     function emergencyWithdraw() external onlyOwner {

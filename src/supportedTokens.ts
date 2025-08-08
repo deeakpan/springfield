@@ -1,6 +1,6 @@
 
 
-export const SPRFD_ADDRESS = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
+export const SPRING_ADDRESS = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
 
 export const TOKENS = [
   {
@@ -9,8 +9,8 @@ export const TOKENS = [
     logo: "/peuchain-logo.jpg"
   },
   {
-    address: SPRFD_ADDRESS,
-    name: "SPRFD",
+    address: SPRING_ADDRESS,
+    name: "SPRING",
     logo: "/cool_bart-removebg-preview.png"
   }
 ]; 

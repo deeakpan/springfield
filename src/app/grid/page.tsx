@@ -13,14 +13,60 @@ import { ethers } from 'ethers';
 import { useAccount, useWalletClient } from 'wagmi';
 import { CONTRACT_ADDRESSES, TILE_MARKETPLACE_ABI } from '../../config/contracts';
 
-// Simple fallback component for the center tile
-const CenterTileFallback = () => (
-  <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
-    <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
-      <QRCode value="https://x.com/pepe_unchained" bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+// Dynamic center tile component that changes based on auction state
+const CenterTileFallback = ({ auctionState, winnerQRPreference, winnerImageCID, winnerPrimaryLink }: {
+  auctionState: number;
+  winnerQRPreference?: boolean;
+  winnerImageCID?: string;
+  winnerPrimaryLink?: string;
+}) => {
+  // Default QR code value
+  const defaultQRValue = "https://www.pepu-springfield.com";
+  
+  // If auction is in display period and has winner
+  if (auctionState === 2 && winnerQRPreference !== undefined) {
+    if (winnerQRPreference) {
+      // Show winner's image directly
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
+          <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%] overflow-hidden">
+            {winnerImageCID ? (
+              <img 
+                src={`https://gateway.lighthouse.storage/ipfs/${winnerImageCID}`}
+                alt="Winner's content"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-center text-gray-500">
+                <div className="text-2xl mb-2">🖼️</div>
+                <p className="text-sm">Winner's Image</p>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    } else {
+      // Show QR code linking to winner's content
+      const qrValue = winnerPrimaryLink || defaultQRValue;
+      return (
+        <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
+          <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
+            <QRCode value={qrValue} bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+          </div>
+        </div>
+      );
+    }
+  }
+  
+  // Default: Show pepu-springfield.xyz QR code
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-yellow-400 border-2 border-black">
+      <div className="bg-white rounded-lg flex items-center justify-center w-[95%] h-[95%]">
+        <QRCode value={defaultQRValue} bgColor="#fff" fgColor="#111" style={{ width: '100%', height: '100%' }} />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Simple tile interface
 interface Tile {
@@ -110,12 +156,25 @@ export default function GridPage() {
   const [marketData, setMarketData] = useState<any>({ marketCapFormatted: '$0' });
   const [soldTilesCount, setSoldTilesCount] = useState(0);
   const [userOwnedTilesCount, setUserOwnedTilesCount] = useState(0);
+  
+  // Auction state for center tile
+  const [auctionState, setAuctionState] = useState<number>(0);
+  const [winnerQRPreference, setWinnerQRPreference] = useState<boolean | undefined>(undefined);
+  const [winnerImageCID, setWinnerImageCID] = useState<string | undefined>(undefined);
+  const [winnerPrimaryLink, setWinnerPrimaryLink] = useState<string | undefined>(undefined);
 
   const { address: userAddress } = useAccount();
   const { data: walletClient } = useWalletClient();
   // const signer = walletClient ? new JsonRpcSigner(walletClient) : null;
   const TILE_AUCTION_ADDRESS = '0x3B4Be35688BF620d8c808678D5CF22494FFD2c9B';
-  // const auctionContract = signer ? new Contract(TILE_AUCTION_ADDRESS, TileAuctionABI, signer) : null;
+  const AUCTION_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AUCTION_CONTRACT;
+  
+  // Auction ABI for fetching state
+  const AUCTION_ABI = [
+    "function currentState() external view returns (uint8)",
+    "function getCurrentAuctionInfo() external view returns (tuple(uint256 auctionId, uint256 startTime, uint256 endTime, uint256 totalBids, uint256 totalAmount, uint256 uniqueBidders, address highestBidder, uint256 highestBidAmount, bool isActive, bool hasWinner, bool hasBeenExtendedForNoBids, tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId) winningBid))",
+    "function getQRPreference(uint256 _auctionId, address _winner) external view returns (bool)"
+  ];
 
   // Convert old coordinate format to new numeric ID
   const convertOldTileId = (oldId: string): string => {
@@ -146,21 +205,106 @@ export default function GridPage() {
     }
   };
 
+  // Fetch auction state for center tile
+  const fetchAuctionState = async () => {
+    try {
+      if (!AUCTION_CONTRACT_ADDRESS || !process.env.NEXT_PUBLIC_RPC_URL) {
+        console.log('Auction contract not configured');
+        return;
+      }
+      
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      const contract = new ethers.Contract(AUCTION_CONTRACT_ADDRESS, AUCTION_ABI, provider);
+      
+      const state = await contract.currentState();
+      const stateNumber = Number(state);
+      setAuctionState(stateNumber);
+      
+      // If in display period, fetch winner details
+      if (stateNumber === 2) {
+        const info = await contract.getCurrentAuctionInfo();
+        if (info.hasWinner && info.winningBid.bidder) {
+          // Fetch QR preference
+          const qrPref = await contract.getQRPreference(info.auctionId, info.winningBid.bidder);
+          setWinnerQRPreference(qrPref);
+          
+          // Fetch metadata from IPFS to get image and primary link
+          if (info.winningBid.metadataUrl) {
+            try {
+              const cid = info.winningBid.metadataUrl.replace('ipfs://', '');
+              const response = await fetch(`https://gateway.lighthouse.storage/ipfs/${cid}`);
+              if (response.ok) {
+                const metadata = await response.json();
+                setWinnerImageCID(metadata.imageCID);
+                
+                // Get primary link (website or first social)
+                let primaryLink = metadata.website;
+                
+                if (!primaryLink && metadata.socials) {
+                  if (metadata.userType === 'user') {
+                    // For user type, use first social link
+                    const firstSocial = Object.entries(metadata.socials)[0];
+                    if (firstSocial) {
+                      const [platform, value] = firstSocial;
+                      primaryLink = String(value);
+                    }
+                  } else {
+                    // For project type, use primary link
+                    if (metadata.socials.primary) {
+                      const firstPrimary = Object.entries(metadata.socials.primary)[0];
+                      if (firstPrimary) {
+                        const [platform, value] = firstPrimary;
+                        primaryLink = String(value);
+                      }
+                    }
+                  }
+                }
+                
+                console.log('Winner primary link:', primaryLink);
+                setWinnerPrimaryLink(primaryLink);
+              }
+            } catch (error) {
+              console.error('Error fetching winner metadata:', error);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching auction state:', error);
+    }
+  };
+
   // Fetch contract stats (total tiles count and user's owned tiles)
   const fetchContractStats = async () => {
     try {
-      const url = userAddress 
-        ? `/api/contract-stats?userAddress=${userAddress}`
-        : '/api/contract-stats';
-      
-      const response = await fetch(url);
+      // Get total tiles count from API
+      const response = await fetch('/api/contract-stats');
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
           setSoldTilesCount(result.data.totalTilesCount);
-          setUserOwnedTilesCount(result.data.userOwnedTilesCount);
-          console.log('Contract stats:', result.data);
         }
+      }
+      
+      // Get user's owned tiles count directly from contract
+      if (userAddress && process.env.NEXT_PUBLIC_RPC_URL && CONTRACT_ADDRESSES.TILE_CORE) {
+        try {
+          const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+          const tileCoreContract = new ethers.Contract(
+            CONTRACT_ADDRESSES.TILE_CORE,
+            ["function getUserOwnedTiles(address user) external view returns (uint256[] memory)"],
+            provider
+          );
+          
+          const userTiles = await tileCoreContract.getUserOwnedTiles(userAddress);
+          setUserOwnedTilesCount(userTiles.length);
+          console.log('User owned tiles count:', userTiles.length);
+        } catch (error) {
+          console.error('Error fetching user owned tiles:', error);
+          setUserOwnedTilesCount(0);
+        }
+      } else {
+        setUserOwnedTilesCount(0);
       }
     } catch (error) {
       console.error('Error fetching contract stats:', error);
@@ -234,20 +378,37 @@ export default function GridPage() {
           if (details.metadataUri) {
             try {
               console.log(`Fetching metadata for tile ${tileId} from: ${details.metadataUri}`);
-              const metadataResponse = await fetch(details.metadataUri);
+              
+              // Handle different IPFS URI formats
+              let metadataUrl = details.metadataUri;
+              if (metadataUrl.startsWith('ipfs://')) {
+                metadataUrl = `https://gateway.lighthouse.storage/ipfs/${metadataUrl.replace('ipfs://', '')}`;
+              }
+              
+              const metadataResponse = await fetch(metadataUrl);
               if (metadataResponse.ok) {
                 metadata = await metadataResponse.json();
-                console.log(`Metadata for tile ${tileId}:`, metadata);
+                console.log(`✅ Metadata for tile ${tileId}:`, metadata);
                 
-                // Extract image CID directly from metadata (not nested in image field)
+                // Extract image CID with better error handling
                 if (metadata.imageCID) {
                   imageCID = metadata.imageCID;
-                  console.log(`Image CID for tile ${tileId}:`, imageCID);
+                  console.log(`✅ Image CID for tile ${tileId}:`, imageCID);
+                } else if (metadata.image) {
+                  // Fallback for different metadata structures
+                  imageCID = metadata.image;
+                  console.log(`✅ Image (fallback) for tile ${tileId}:`, imageCID);
+                } else {
+                  console.log(`⚠️ No image found in metadata for tile ${tileId}`);
                 }
+              } else {
+                console.error(`❌ Failed to fetch metadata for tile ${tileId}: ${metadataResponse.status} ${metadataResponse.statusText}`);
               }
             } catch (error) {
-              console.error(`Error fetching metadata for tile ${tileId}:`, error);
+              console.error(`❌ Error fetching metadata for tile ${tileId}:`, error);
             }
+          } else {
+            console.log(`⚠️ No metadata URI for tile ${tileId}`);
           }
           
           newTileDetails[tileId] = {
@@ -283,7 +444,8 @@ export default function GridPage() {
       await Promise.all([
         fetchTileDetails(),
         fetchMarketData(),
-        fetchContractStats() // Call fetchContractStats here
+        fetchContractStats(),
+        fetchAuctionState()
       ]);
     };
     
@@ -329,7 +491,8 @@ export default function GridPage() {
     Promise.all([
       fetchTileDetails(),
       fetchMarketData(),
-      fetchContractStats()
+      fetchContractStats(),
+      fetchAuctionState()
     ]);
   };
 
@@ -448,7 +611,7 @@ export default function GridPage() {
                   {marketData.marketCapFormatted}
                   {/* Debug: {JSON.stringify(marketData)} */}
                 </div>
-                <div className="text-emerald-400/70 text-[10px] sm:text-xs mt-1">$SPRFD</div>
+                <div className="text-emerald-400/70 text-[10px] sm:text-xs mt-1">$SPRING</div>
               </div>
 
               <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-xl p-2 sm:p-4">
@@ -586,7 +749,12 @@ export default function GridPage() {
                     onMouseLeave={() => setHoveredTile(null)}
                   >
                     {tile.isCenterArea ? (
-                        <CenterTileFallback />
+                        <CenterTileFallback 
+                          auctionState={auctionState}
+                          winnerQRPreference={winnerQRPreference}
+                          winnerImageCID={winnerImageCID}
+                          winnerPrimaryLink={winnerPrimaryLink}
+                        />
                       ) : details && details.owner ? (
                       <div className="w-full h-full flex items-center justify-center">
                         <Star className="w-2 h-2 text-black" />

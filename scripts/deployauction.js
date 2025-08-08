@@ -19,7 +19,7 @@ async function main() {
         // Where winning auction bids go
         BID_RECIPIENT: "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E", // Your payout address
         
-        // ERC20 token address for bidding (SPRFD token)
+        // ERC20 token address for bidding (SPRING token)
         BIDDING_TOKEN: "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1" // REPLACE WITH ACTUAL TOKEN ADDRESS
     };
 
@@ -32,7 +32,7 @@ async function main() {
 
     if (CONFIG.BIDDING_TOKEN === "0x0000000000000000000000000000000000000000") {
         console.error("❌ Please set BIDDING_TOKEN address in the script!");
-        console.log("💡 Use your deployed ERC20 token address (SPRFD)");
+        console.log("💡 Use your deployed ERC20 token address (SPRING)");
         return;
     }
 
@@ -103,7 +103,7 @@ async function main() {
     console.log("   npm start");
     console.log("");
     console.log("4. 🎯 Bot will automatically:");
-    console.log("   - Start auctions every Friday 6:58 AM UTC");
+    console.log("   - Start auctions every Friday 10:50 AM UTC");
     console.log("   - End auctions after 24 hours + extensions");
     console.log("   - Forward winning bids to recipient");
     console.log("");

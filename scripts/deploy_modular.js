@@ -12,11 +12,11 @@ async function main() {
     console.log(`💰 Account balance: ${ethers.formatEther(balance)} PEPU\n`);
 
     // Configuration
-    const SPRFD_TOKEN = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
+    const SPRING_TOKEN = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
     const PLATFORM_FEE = 500; // 5% fee in basis points
     
     console.log("📋 Configuration:");
-    console.log(`   SPRFD Token: ${SPRFD_TOKEN}`);
+    console.log(`   SPRING Token: ${SPRING_TOKEN}`);
     console.log(`   Platform Fee: ${PLATFORM_FEE/100}%\n`);
 
     // Step 1: Deploy TileCore
@@ -32,7 +32,7 @@ async function main() {
     const TileMarketplace = await ethers.getContractFactory("TileMarketplace");
     const tileMarketplace = await TileMarketplace.deploy(
         await tileCore.getAddress(),
-        SPRFD_TOKEN,
+        SPRING_TOKEN,
         PLATFORM_FEE
     );
     await tileMarketplace.waitForDeployment();

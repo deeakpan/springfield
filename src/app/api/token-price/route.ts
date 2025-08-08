@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SPRFD_ADDRESS } from '../../../supportedTokens';
+import { SPRING_ADDRESS } from '../../../supportedTokens';
 
 export async function GET(req: NextRequest) {
   try {
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     // Build mapping
     const tokenAmounts = {
       PEPU: pepuTokensFor7USD,
-      [SPRFD_ADDRESS]: sprfdTokensFor7USD
+      [SPRING_ADDRESS]: sprfdTokensFor7USD
     };
     return NextResponse.json(tokenAmounts);
   } catch (e) {

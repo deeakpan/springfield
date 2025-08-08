@@ -130,15 +130,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
   // Change imageFile state to FileList | null
   const [imageFile, setImageFile] = useState<FileList | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  // Remove tokenName state and API usage
-  const [tokenName, setTokenName] = useState<string>('');
   const [sprfdBalance, setSprfdBalance] = useState<string>('');
-  const SPRFD_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_SPRFD_ADDRESS;
-  // Use consistent type for selectedToken
-  const [selectedToken, setSelectedToken] = useState<TokenType>({
-    ...TOKENS[0],
-    address: TOKENS[0].isNative ? undefined : (SPRFD_TOKEN_ADDRESS || TOKENS[0].address),
-  });
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -171,12 +163,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       setProjectAdditionalLinks(['', '']);
       setImageFile(null);
       setImagePreview(null);
-      setTokenName('');
       setSprfdBalance('');
-      setSelectedToken({
-        ...TOKENS[0],
-        address: TOKENS[0].isNative ? undefined : (SPRFD_TOKEN_ADDRESS || TOKENS[0].address),
-      });
       setConnectedAddress(null);
       setUploading(false);
       setErrorMsg(null);
@@ -197,18 +184,14 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     };
   }, [open]);
 
-      // Set fixed price based on selected token
+      // Set fixed price for PEPU
     useEffect(() => {
       if (step === 'price' && open) {
         setLoadingPrice(true);
-        if (selectedToken.isNative) {
-          setPrice('1'); // 1 PEPU for native token
-        } else {
-          setPrice('10000'); // 10000 SPRFD for ERC20 token
-        }
+        setPrice('12000'); // 12,000 PEPU
         setLoadingPrice(false);
       }
-    }, [step, open, selectedToken]);
+    }, [step, open]);
 
   // Fetch selected token wallet balance in price step
   useEffect(() => {
@@ -218,40 +201,15 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
           const userAddress = await signer.getAddress();
-          if (selectedToken.isNative) {
-            const balance = await provider.getBalance(userAddress);
-            setSprfdBalance(ethers.formatUnits(balance, 18)); // Assuming 18 decimals for native
-          } else {
-            if (!selectedToken.address) throw new Error('No address for ERC20 token');
-            try {
-              // For SPRFD: use the token contract directly
-              const tokenContract = new ethers.Contract(
-                selectedToken.address,
-                ["function balanceOf(address owner) view returns (uint256)", "function decimals() view returns (uint8)"],
-                provider
-              );
-              
-              const [balance, decimals] = await Promise.all([
-                tokenContract.balanceOf(userAddress),
-                tokenContract.decimals()
-              ]);
-              
-              setSprfdBalance(ethers.formatUnits(balance, decimals));
-            } catch (err) {
-              console.error("Failed to fetch SPRFD balance:", err, {
-                address: selectedToken.address,
-                userAddress
-              });
-              setSprfdBalance('');
-            }
-          }
+          const balance = await provider.getBalance(userAddress);
+          setSprfdBalance(ethers.formatUnits(balance, 18)); // 18 decimals for PEPU
         } catch (e) {
           setSprfdBalance('');
         }
       }
     }
     fetchBalance();
-  }, [step, open, selectedToken]);
+  }, [step, open]);
 
   // Prevent modal from closing on background click or event bubbling
   useEffect(() => {
@@ -372,69 +330,27 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       const signer = await provider.getSigner();
       const userAddress = await signer.getAddress();
 
-      if (selectedToken.isNative) {
-        // Native token transfer via Marketplace contract
-        const nativeAmount = ethers.parseUnits(String(price), 18);
-        const balance = await provider.getBalance(userAddress);
-        if (balance < nativeAmount) {
-          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
-          setUploading(false);
-          return;
-        }
-        
-        // Call Marketplace contract's buyTileWithNative function
-        const tileMarketplace = new ethers.Contract(
-          TILE_PURCHASE_ADDRESS!,
-          ["function buyTileWithNative(uint256 tileId, string memory metadataUri) external payable"],
-          signer
-        );
-        const tx = await tileMarketplace.buyTileWithNative(
-          tileId, 
-          metadataUri,
-          { value: nativeAmount }
-        );
-        await tx.wait();
-      } else {
-        // ERC20 token transfer via Marketplace contract
-        if (!selectedToken.address) throw new Error('No address for ERC20 token');
-        const erc20 = new ethers.Contract(
-          selectedToken.address,
-          [
-            "function decimals() view returns (uint8)",
-            "function balanceOf(address owner) view returns (uint256)",
-            "function approve(address spender, uint256 amount) returns (bool)"
-          ],
-          signer
-        );
-        
-        const decimals = await erc20.decimals();
-        const amount = ethers.parseUnits(String(price), decimals);
-        const balance = await erc20.balanceOf(userAddress);
-        
-        console.log('Token:', selectedToken.address, 'Decimals:', decimals, 'Amount:', amount.toString(), 'User balance:', balance.toString());
-        if (balance < amount) {
-          setErrorMsg(`Insufficient ${selectedToken.name} balance for this purchase.`);
-          setUploading(false);
-          return;
-        }
-        
-        // First approve the Marketplace contract to spend tokens
-        const approveTx = await erc20.approve(TILE_PURCHASE_ADDRESS!, amount);
-        await approveTx.wait();
-        
-        // Then call Marketplace contract's buyTile function
-        const tileMarketplace = new ethers.Contract(
-          TILE_PURCHASE_ADDRESS!,
-          ["function buyTile(uint256 amount, uint256 tileId, string memory metadataUri) external"],
-          signer
-        );
-        const tx = await tileMarketplace.buyTile(
-          amount,
-          tileId,
-          metadataUri
-        );
-        await tx.wait();
+      // PEPU transfer via Marketplace contract
+      const nativeAmount = ethers.parseUnits(String(price), 18);
+      const balance = await provider.getBalance(userAddress);
+      if (balance < nativeAmount) {
+        setErrorMsg(`Insufficient PEPU balance for this purchase.`);
+        setUploading(false);
+        return;
       }
+      
+      // Call Marketplace contract's buyTileWithNative function
+      const tileMarketplace = new ethers.Contract(
+        TILE_PURCHASE_ADDRESS!,
+        ["function buyTileWithNative(uint256 tileId, string memory metadataUri) external payable"],
+        signer
+      );
+      const tx = await tileMarketplace.buyTileWithNative(
+        tileId, 
+        metadataUri,
+        { value: nativeAmount }
+      );
+      await tx.wait();
 
       // 5. Success: clear form, close modal, show message
       setSuccessMsg("Tile purchased successfully!");
@@ -661,39 +577,16 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     content = (
       <div className="flex flex-col items-center gap-4 w-full p-4">
         <h2 className={`text-2xl ${springfieldFont} text-yellow-300 mb-2 w-full text-center`}>Confirm Purchase</h2>
-        {/* Token selector as a dropdown */}
-        <div className="w-full max-w-xs mb-2">
-          <select
-            className="w-32 px-2 py-1 rounded-md border-2 border-black bg-green-500 text-black font-bold text-sm outline-none"
-            value={selectedToken.isNative ? "PEPU_NATIVE" : selectedToken.address}
-            onChange={e => {
-              const value = e.target.value;
-              const token = value === "PEPU_NATIVE"
-                ? TOKENS.find(t => t.isNative)
-                : TOKENS.find(t => t.address === value);
-              if (token) setSelectedToken({ ...token, address: token.isNative ? undefined : token.address });
-            }}
-          >
-            {TOKENS.map(token => (
-              <option
-                key={token.address ?? "PEPU_NATIVE"}
-                value={token.isNative ? "PEPU_NATIVE" : token.address}
-                className="text-black"
-              >
-                {token.name}
-              </option>
-            ))}
-          </select>
-        </div>
+
         {/* You Send section (compact, wrapped, fixed) */}
         <div className="w-full max-w-xs flex flex-col items-stretch mb-2">
           <label className="block text-sm font-semibold text-black mb-1 ml-1">You Send</label>
           <div className="flex items-center border-2 border-black rounded-lg px-3 py-2 bg-white min-w-0">
             <div className="flex flex-nowrap items-center mr-2">
               <div className="rounded-full bg-white border-2 border-black w-7 h-7 flex items-center justify-center overflow-hidden">
-                <Image src={selectedToken.logo} alt={selectedToken.name + ' Logo'} width={28} height={28} className="object-cover w-full h-full" />
+                <Image src="/peuchain-logo.jpg" alt="PEPU Logo" width={28} height={28} className="object-cover w-full h-full" />
               </div>
-              <span className="ml-2 text-xs font-bold text-yellow-500 whitespace-nowrap">{selectedToken.name}</span>
+              <span className="ml-2 text-xs font-bold text-yellow-500 whitespace-nowrap">PEPU</span>
             </div>
             <input
               type="text"
@@ -704,7 +597,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
             />
           </div>
           <div className="text-xs text-black mt-1 text-right pr-1">
-            {selectedToken.isNative ? `${sprfdBalance} PEPU` : `${sprfdBalance} SPRFD`} available
+            {sprfdBalance} PEPU available
           </div>
                 </div>
         {/* Details Section (compact, black border) */}
@@ -742,7 +635,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
           onClick={handleBuy}
           >
           {uploading ? <Loader2 className="animate-spin w-5 h-5 mr-1" /> : <ShoppingCart className="w-5 h-5 mr-1" />}
-          {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : `Buy Tile for ${price} ${selectedToken.name}`)}
+          {uploading ? 'Uploading...' : (loadingPrice ? 'Loading...' : `Buy Tile for ${price} PEPU`)}
           </button>
       </div>
     );

@@ -12,10 +12,12 @@ const AUCTION_ABI = [
   "function auctionEndTime() external view returns (uint256)",
   "function getBidCount(uint256 _auctionId) external view returns (uint256)",
   "function hasAuctionBeenExtendedForNoBids(uint256 _auctionId) external view returns (bool)",
-  "function placeBid(uint256 _amount, string _name, string _description, string _metadataUrl) external",
+  "function placeBid(uint256 _amount, string _name, string _description, string _metadataUrl, bool _qrPreference) external",
   "function bidderRefunds(address bidder, uint256 auctionId) external view returns (uint256)",
   "function biddingToken() external view returns (address)",
-  "function getCurrentAuctionInfo() external view returns (tuple(uint256 auctionId, uint256 startTime, uint256 endTime, uint256 totalBids, uint256 totalAmount, uint256 uniqueBidders, address highestBidder, uint256 highestBidAmount, bool isActive, bool hasWinner, bool hasBeenExtendedForNoBids, tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId) winningBid))"
+  "function getCurrentAuctionInfo() external view returns (tuple(uint256 auctionId, uint256 startTime, uint256 endTime, uint256 totalBids, uint256 totalAmount, uint256 uniqueBidders, address highestBidder, uint256 highestBidAmount, bool isActive, bool hasWinner, bool hasBeenExtendedForNoBids, tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId) winningBid))",
+  "function setQRPreference(uint256 _auctionId, bool _isImage) external",
+  "function getQRPreference(uint256 _auctionId, address _winner) external view returns (bool)"
 ];
 
 // FIXED: ERC20 ABI for token operations
@@ -27,7 +29,7 @@ const ERC20_ABI = [
 ];
 
 const AUCTION_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AUCTION_CONTRACT;
-const SPRFD_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_SPRFD_ADDRESS;
+const SPRING_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_SPRING_ADDRESS;
 
 interface AuctionModalProps {
   isOpen: boolean;
@@ -52,6 +54,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     bidAmount: '',
     website: '',
     description: '',
+    qrPreference: false, // false = QR code (link), true = direct image
   });
   const [userSocialPlatform, setUserSocialPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
   const [userSocialValue, setUserSocialValue] = useState('');
@@ -93,6 +96,8 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   const [auctionState, setAuctionState] = useState<0 | 1 | 2>(0); // 0=INACTIVE, 1=ACTIVE, 2=DISPLAY_PERIOD
   const [timeLeft, setTimeLeft] = useState(0);
   const [winningBidMetadata, setWinningBidMetadata] = useState<any>(null);
+  const [currentQRPreference, setCurrentQRPreference] = useState<boolean>(false);
+  const [isWinner, setIsWinner] = useState<boolean>(false);
 
   // Fetch auction state
   useEffect(() => {
@@ -120,8 +125,8 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   useEffect(() => {
     const checkBalance = async () => {
       try {
-        if (!SPRFD_TOKEN_ADDRESS) {
-          console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
+        if (!SPRING_TOKEN_ADDRESS) {
+          console.error("❌ NEXT_PUBLIC_SPRING_ADDRESS not set!");
           return;
         }
 
@@ -129,10 +134,10 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
           console.log("🔑 Connected wallet:", signer.address);
-          console.log("🪙 SPRFD token address:", SPRFD_TOKEN_ADDRESS);
+          console.log("🪙 SPRING token address:", SPRING_TOKEN_ADDRESS);
 
           const sprfdContract = new ethers.Contract(
-            SPRFD_TOKEN_ADDRESS,
+            SPRING_TOKEN_ADDRESS,
             ["function balanceOf(address) view returns (uint256)"],
             provider
           );
@@ -140,7 +145,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
           const balance = await sprfdContract.balanceOf(signer.address);
           const formattedBalance = ethers.formatEther(balance);
           console.log("💰 Raw balance:", balance.toString());
-          console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
+          console.log("💰 Formatted balance:", formattedBalance, "SPRING");
           setUserBalance(formattedBalance);
         }
       } catch (error: any) {
@@ -244,13 +249,39 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
           const metadata = await fetchMetadataFromIPFS(parsedInfo.winningBid.metadataUrl);
           setWinningBidMetadata(metadata);
           console.log("📄 Winning bid metadata:", metadata);
+          
+          // Check if current user is the winner and fetch QR preference
+          try {
+            if (window.ethereum) {
+              const walletProvider = new ethers.BrowserProvider(window.ethereum);
+              const signer = await walletProvider.getSigner();
+              const userAddress = await signer.getAddress();
+              
+              if (userAddress.toLowerCase() === parsedInfo.winningBid.bidder.toLowerCase()) {
+                setIsWinner(true);
+                console.log("🎉 Current user is the winner!");
+                
+                // Fetch QR preference from contract
+                const qrPreference = await contract.getQRPreference(parsedInfo.auctionId, userAddress);
+                setCurrentQRPreference(qrPreference);
+                console.log("🔗 Current QR preference:", qrPreference ? "Direct Image" : "QR Code");
+              } else {
+                setIsWinner(false);
+                setCurrentQRPreference(false);
+              }
+            }
+          } catch (error) {
+            console.error("Error checking winner status:", error);
+            setIsWinner(false);
+            setCurrentQRPreference(false);
+          }
         }
         
         // Only get user balance if auction is active and wallet connected
         if (stateNumber === 1) {
           try {
-            if (!SPRFD_TOKEN_ADDRESS) {
-              console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
+            if (!SPRING_TOKEN_ADDRESS) {
+              console.error("❌ NEXT_PUBLIC_SPRING_ADDRESS not set!");
               return;
             }
 
@@ -260,14 +291,14 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
               console.log("🔑 Connected wallet:", signer.address);
 
               const sprfdContract = new ethers.Contract(
-                SPRFD_TOKEN_ADDRESS,
+                SPRING_TOKEN_ADDRESS,
                 ["function balanceOf(address) view returns (uint256)"],
                 walletProvider
               );
 
               const balance = await sprfdContract.balanceOf(signer.address);
               const formattedBalance = ethers.formatEther(balance);
-              console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
+              console.log("💰 Formatted balance:", formattedBalance, "SPRING");
               setUserBalance(formattedBalance);
             } else {
               console.log("❌ No wallet connected!");
@@ -389,9 +420,9 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
 
-      // First approve SPRFD tokens
+      // First approve SPRING tokens
       const sprfdContract = new ethers.Contract(
-        SPRFD_TOKEN_ADDRESS!,
+        SPRING_TOKEN_ADDRESS!,
         ["function approve(address spender, uint256 amount) returns (bool)"],
         signer
       );
@@ -407,7 +438,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
         signer
       );
 
-      const tx = await auctionContract.placeBid(amount, form.name, userType, metadataUri);
+      const tx = await auctionContract.placeBid(amount, form.name, userType, metadataUri, form.qrPreference);
       await tx.wait();
 
       // 5. Success
@@ -490,11 +521,52 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     return null;
   };
 
+  // Function to toggle QR preference
+  const toggleQRPreference = async () => {
+    if (!isWinner || !auctionInfo.auctionId) return;
+    
+    try {
+      if (!window.ethereum) throw new Error("Wallet not found");
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+      
+      const auctionContract = new ethers.Contract(
+        AUCTION_CONTRACT_ADDRESS!,
+        AUCTION_ABI,
+        signer
+      );
+      
+      const newPreference = !currentQRPreference;
+      const tx = await auctionContract.setQRPreference(auctionInfo.auctionId, newPreference);
+      await tx.wait();
+      
+      setCurrentQRPreference(newPreference);
+      console.log("QR preference updated to:", newPreference ? "Direct Image" : "QR Code");
+        } catch (error: any) {
+      console.error("Failed to toggle QR preference:", error);
+      setErrorMsg(error.message || "Failed to update QR preference");
+    }
+  };
+
   // Helper function to format social links
   const formatSocialLink = (platform: string, value: string) => {
     let url = String(value);
     
-    // For social platforms, show just the platform name
+    // Check if value is already a URL
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      // For social platforms, show just the platform name
+      if (platform === 'telegram') {
+        return { url, displayText: 'Telegram' };
+      } else if (platform === 'discord') {
+        return { url, displayText: 'Discord' };
+      } else if (platform === 'x') {
+        return { url, displayText: 'X' };
+      }
+      // For other platforms, show full URL
+      return { url, displayText: value };
+    }
+    
+    // For social platforms, construct URL from username
     if (platform === 'telegram') {
       url = `https://t.me/${value}`;
       return { url, displayText: 'Telegram' };
@@ -515,7 +587,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     if (isOpen) {
       setStep('form');
       setUserType('');
-      setForm({ name: '', bidAmount: '', website: '', description: '' });
+      setForm({ name: '', bidAmount: '', website: '', description: '', qrPreference: false });
       setUserSocialValue('');
       setProjectPrimaryValue('');
       setProjectAdditionalLinks(['', '']);
@@ -593,7 +665,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                     <>
                      <p className="text-sm font-bold text-yellow-800">💰 {auctionInfo.totalBids} bid(s) placed</p>
                       <p className="text-xs text-gray-600 mt-1">
-                        Highest bid: {auctionInfo.highestBid} SPRFD
+                        Highest bid: {auctionInfo.highestBid} SPRING
                       </p>
                       <p className="text-xs text-gray-600 mt-1">
                         Highest bidder: {auctionInfo.highestBidder ? `${auctionInfo.highestBidder.slice(0, 6)}...${auctionInfo.highestBidder.slice(-4)}` : 'No bids yet'}
@@ -618,36 +690,77 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                       <h5 className="font-bold text-yellow-900 text-lg mb-1">🎉 Winner!</h5>
                       <p className="font-bold text-yellow-900">{auctionInfo.winningBid.name || 'Unnamed Project'}</p>
                       <p className="text-sm text-yellow-800">
-                        Winning bid: {auctionInfo.winningBid.amount} SPRFD
+                        Winning bid: {auctionInfo.winningBid.amount} SPRING
                       </p>
-                    </div>
+                      <p className="text-xs text-yellow-800">
+                        Address: {auctionInfo.winningBid.bidder.slice(0, 6)}...{auctionInfo.winningBid.bidder.slice(-4)}
+                      </p>
+               </div>
                     
-                    {/* Winner Image */}
+                    {/* Winner Image - Always Show */}
                     {winningBidMetadata?.imageCID && (
                       <div className="bg-white rounded-lg p-3 border-2 border-gray-200">
-                        <img 
-                          src={`https://gateway.lighthouse.storage/ipfs/${winningBidMetadata.imageCID}`}
-                          alt="Winner's project"
-                          className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                        />
-               </div>
+                        <div className="flex justify-between items-center mb-2">
+                          <h6 className="font-semibold text-gray-700">🖼️ Winner's Image</h6>
+                          {isWinner && (
+                            <button
+                              onClick={toggleQRPreference}
+                              className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-lg text-sm hover:from-purple-600 hover:to-blue-600 transition-all duration-200 shadow-md hover:shadow-lg font-medium flex items-center gap-2"
+                              title="Toggle QR preference for main grid display"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              {currentQRPreference ? "Switch to QR" : "Switch to Image"}
+                            </button>
              )}
+          </div>
+                        
+                        {/* Always show image in modal */}
+                        <div className="relative">
+                          <img 
+                            src={`https://gateway.lighthouse.storage/ipfs/${winningBidMetadata.imageCID}`}
+                            alt="Winner's project"
+                            className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                            onError={(e) => {
+                              console.error('Failed to load image from IPFS:', winningBidMetadata.imageCID);
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
+                            IPFS Image
+        </div>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Winner Details */}
                     <div className="bg-gray-50 rounded-lg p-3 space-y-2">
                       <div>
-                        <span className="font-semibold text-gray-700">Winner:</span>
-                        <p className="text-sm text-gray-600 break-all">
-                          {auctionInfo.winningBid.bidder.slice(0, 6)}...{auctionInfo.winningBid.bidder.slice(-4)}
-                        </p>
-          </div>
+                        <span className="font-semibold text-gray-700">Winner Name:</span>
+                        <p className="text-sm text-gray-600 font-medium">{auctionInfo.winningBid.name || 'Unnamed Project'}</p>
+                      </div>
                       
-                      {auctionInfo.winningBid.description && (
+                      <div>
+                        <span className="font-semibold text-gray-700">Winner Address:</span>
+                        <p className="text-sm text-gray-600 break-all font-mono">
+                          {auctionInfo.winningBid.bidder}
+                        </p>
+                      </div>
+                      
+                      {winningBidMetadata?.description && (
                         <div>
-                          <span className="font-semibold text-gray-700">Type:</span>
-                          <p className="text-sm text-gray-600">{auctionInfo.winningBid.description}</p>
-        </div>
+                          <span className="font-semibold text-gray-700">Description:</span>
+                          <p className="text-sm text-gray-600">{winningBidMetadata.description}</p>
+                        </div>
                       )}
+                      
+                      <div>
+                        <span className="font-semibold text-gray-700">Winning Bid:</span>
+                        <p className="text-sm text-gray-600 font-medium">
+                          {auctionInfo.winningBid.amount} SPRING
+                        </p>
+                      </div>
                       
                       <div>
                         <span className="font-semibold text-gray-700">Bid Time:</span>
@@ -659,62 +772,66 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
 
                       
 
+                      
+
                        
-                       {/* Display Social Links */}
-                       {winningBidMetadata?.socials && (
-                         <div>
-                           <span className="font-semibold text-gray-700 block mb-2">📱 Social Links:</span>
-                           <div className="space-y-1">
-                             {winningBidMetadata.userType === 'user' ? (
-                               // User social links - show all except first one (which is used for explore button)
-                               Object.entries(winningBidMetadata.socials).slice(1).map(([platform, value]) => {
-                                 const formatted = formatSocialLink(platform, String(value));
-                                 return (
-                                   <a
-                                     key={platform}
-                                     href={formatted.url}
-                                     target="_blank"
-                                     rel="noopener noreferrer"
-                                     className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                                   >
-                                     {formatted.displayText}
-                                   </a>
-                                 );
-                               })
-                             ) : (
-                               // Project social links - show all except first primary (which is used for explore button)
-                               <div className="space-y-1">
-                                 {winningBidMetadata.socials.primary && Object.entries(winningBidMetadata.socials.primary).slice(1).map(([platform, value]) => {
-                                   const formatted = formatSocialLink(platform, String(value));
-                                   return (
-                                     <a
-                                       key={platform}
-                                       href={formatted.url}
-                                       target="_blank"
-                                       rel="noopener noreferrer"
-                                       className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                                     >
-                                       {formatted.displayText}
-                                     </a>
-                                   );
-                                 })}
-                                 {winningBidMetadata.socials.additional && winningBidMetadata.socials.additional.map((link: string, index: number) => (
-                                   <a
-                                     key={index}
-                                     href={link}
-                                     target="_blank"
-                                     rel="noopener noreferrer"
-                                     className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
-                                   >
-                                     Link {index + 1}
-                                   </a>
-                                 ))}
-                               </div>
-                             )}
-                           </div>
-                         </div>
-                       )}
+
                     </div>
+                    
+                    {/* Social Links */}
+                    {winningBidMetadata?.socials && (
+                      <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                        <span className="font-semibold text-gray-700 block mb-2">📱 Social Links:</span>
+                        <div className="space-y-1">
+                          {winningBidMetadata.userType === 'user' ? (
+                            // User social links - show all except first one (which is used for explore button)
+                            Object.entries(winningBidMetadata.socials).slice(1).map(([platform, value]) => {
+                              const formatted = formatSocialLink(platform, String(value));
+                              return (
+                                <a
+                                  key={platform}
+                                  href={formatted.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                >
+                                  {formatted.displayText}
+                                </a>
+                              );
+                            })
+                          ) : (
+                            // Project social links - show all except first primary (which is used for explore button)
+                            <div className="space-y-1">
+                              {winningBidMetadata.socials.primary && Object.entries(winningBidMetadata.socials.primary).slice(1).map(([platform, value]) => {
+                                const formatted = formatSocialLink(platform, String(value));
+                                return (
+                                  <a
+                                    key={platform}
+                                    href={formatted.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                  >
+                                    {formatted.displayText}
+                                  </a>
+                                );
+                              })}
+                              {winningBidMetadata.socials.additional && winningBidMetadata.socials.additional.map((link: string, index: number) => (
+                                <a
+                                  key={index}
+                                  href={link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                >
+                                  Link {index + 1}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Centered Explore Button */}
                     <div className="text-center mt-4">
@@ -929,7 +1046,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                             {form.description.length}/200 characters
                           </div>
                           {errors.description && <div className="text-red-500 text-sm mt-1">{errors.description}</div>}
-                        </div>
+                       </div>
 
                        {/* Social Links */}
                        {userType === 'user' ? (
@@ -1019,6 +1136,37 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                          />
                          {errors.website && <div className="text-red-500 text-sm mt-1">{errors.website}</div>}
                        </div>
+
+                        {/* QR Display Preference */}
+                        <div className="flex flex-col w-full text-left">
+                          <label className="mb-1 font-semibold text-black">QR Display Preference</label>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-md px-4 py-2 text-sm font-bold border-2 border-black transition-all duration-200 ${
+                                !form.qrPreference ? 'bg-green-500 text-white shadow-lg' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                              }`}
+                              onClick={() => setForm(f => ({ ...f, qrPreference: false }))}
+                            >
+                              🔗 QR Code
+                            </button>
+                            <button
+                              type="button"
+                              className={`flex-1 rounded-md px-4 py-2 text-sm font-bold border-2 border-black transition-all duration-200 ${
+                                form.qrPreference ? 'bg-green-500 text-white shadow-lg' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                              }`}
+                              onClick={() => setForm(f => ({ ...f, qrPreference: true }))}
+                            >
+                              🖼️ Direct Image
+                            </button>
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {form.qrPreference 
+                              ? "Your image will be displayed directly (no QR code)"
+                              : "A QR code linking to your website/social will be displayed"
+                            }
+                          </div>
+                       </div>
                      </div>
                    </>
                  ) : (
@@ -1026,12 +1174,12 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                  )}
 
                  <div className="flex flex-col w-full text-left">
-                   <label className="mb-1 font-semibold text-black">Bid Amount (SPRFD)</label>
+                   <label className="mb-1 font-semibold text-black">Bid Amount (SPRING)</label>
                    <div className="space-y-1">
                      <input
                        type="number"
                        className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
-                      placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'} SPRFD`}
+                      placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '10000.00'} SPRING`}
                        value={form.bidAmount}
                        onChange={e => {
                          const value = e.target.value;
@@ -1042,21 +1190,21 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                          
                          if (value) {
                            const bidAmount = Number(value);
-                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 1000;
+                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 10000;
                            const balance = Number(userBalance);
                            
                            if (bidAmount < minBid) {
-                            setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRFD (current highest + 1000)` }));
+                            setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRING (current highest + 1000)` }));
                            } else if (bidAmount > balance) {
-                             setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRFD` }));
+                             setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRING` }));
                            }
                          }
                        }}
-                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'}
+                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '10000.00'}
                        step="0.01"
                      />
                      <div className="text-sm text-gray-600">
-                       Your balance: {Number(userBalance).toFixed(2)} SPRFD
+                       Your balance: {Number(userBalance).toFixed(2)} SPRING
                      </div>
                      {errors.bidAmount && <div className="text-red-500 text-sm">{errors.bidAmount}</div>}
                    </div>
@@ -1147,7 +1295,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                 <div className="text-xl font-bold text-yellow-300 mb-1 w-full text-center">Bid Placed Successfully!</div>
                 <div className="text-md text-black mb-3 w-full text-center italic">Your bid is now live on the blockchain.</div>
                 <div className="text-lg text-gray-700 text-center mb-2">
-                  Amount: {form.bidAmount} SPRFD<br />
+                  Amount: {form.bidAmount} SPRING<br />
                   Auction ID: #{auctionInfo.auctionId}
                 </div>
               </div>

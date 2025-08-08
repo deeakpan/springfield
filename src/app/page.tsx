@@ -269,7 +269,7 @@ export default function Home() {
             viewport={{ once: true }}
           >
             <h2 className="text-4xl md:text-5xl font-bold mb-6 text-white">
-              $SPRFD <span className="text-yellow-300">Tokenomics</span>
+              $SPRING <span className="text-yellow-300">Tokenomics</span>
             </h2>
             <p className="text-xl text-white max-w-3xl mx-auto">
               Our native token powers the Springfield ecosystem with staking, burning, and governance
@@ -280,7 +280,7 @@ export default function Home() {
             <FeatureCard
               icon={Coins}
               title="Dual Token Payments"
-              description="Buy tiles with $SPRFD (our native token) or $PEPU. Staking $SPRFD burns tokens, creating price spikes and scarcity."
+              description="Buy tiles with $SPRING (our native token) or $PEPU. Staking $SPRING burns tokens, creating price spikes and scarcity."
               color="bg-gradient-to-br from-green-100 to-green-200"
               gradient="bg-green-500"
               delay={0.1}
@@ -329,7 +329,7 @@ export default function Home() {
             <FeatureCard
               icon={Star}
               title="Staking Rewards"
-              description="Stake $SPRFD tokens to earn rewards and participate in governance. Burning mechanism creates deflationary pressure."
+              description="Stake $SPRING tokens to earn rewards and participate in governance. Burning mechanism creates deflationary pressure."
               color="bg-gradient-to-br from-yellow-100 to-yellow-200"
               gradient="bg-yellow-500"
               delay={0.8}
