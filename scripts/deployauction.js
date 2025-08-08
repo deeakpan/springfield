@@ -19,8 +19,8 @@ async function main() {
         // Where winning auction bids go
         BID_RECIPIENT: "0x95C46439bD9559e10c4fF49bfF3e20720d93B66E", // Your payout address
         
-        // ERC20 token address for bidding (SPRING token)
-        BIDDING_TOKEN: "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1" // REPLACE WITH ACTUAL TOKEN ADDRESS
+        // ERC20 token address for bidding (SPRING token) - from .env
+        BIDDING_TOKEN: process.env.NEXT_PUBLIC_SPRING_ADDRESS || "0x82144C93bd531E46F31033FE22D1055Af17A514c"
     };
 
     // Validate configuration
@@ -30,8 +30,8 @@ async function main() {
         return;
     }
 
-    if (CONFIG.BIDDING_TOKEN === "0x0000000000000000000000000000000000000000") {
-        console.error("❌ Please set BIDDING_TOKEN address in the script!");
+    if (!CONFIG.BIDDING_TOKEN || CONFIG.BIDDING_TOKEN === "0x0000000000000000000000000000000000000000") {
+        console.error("❌ Please set NEXT_PUBLIC_SPRING_ADDRESS in .env file!");
         console.log("💡 Use your deployed ERC20 token address (SPRING)");
         return;
     }

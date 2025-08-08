@@ -39,8 +39,8 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     uint256 public currentAuctionId;
     uint256 public auctionStartTime;
     uint256 public auctionEndTime;
-    uint256 public constant AUCTION_DURATION = 5 minutes; // TESTING: 5 minutes instead of 24 hours
-    uint256 public constant EXTENSION_TIME = 2 minutes; // TESTING: 2 minutes instead of 4 minutes
+    uint256 public constant AUCTION_DURATION = 24 hours; // 24 hours auction duration
+    uint256 public constant EXTENSION_TIME = 2 minutes; // 2 minutes extension for last-minute bids
     uint256 public constant LAST_MINUTE_THRESHOLD = 10; // 10 seconds
     uint256 public constant NO_BID_EXTENSION_TIME = 12 hours; // 12 hours extension if no bids
     

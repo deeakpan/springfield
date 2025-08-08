@@ -2,30 +2,33 @@ import { http } from 'wagmi';
 import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import type { Chain } from 'wagmi/chains';
 
-export const pepeUnchainedV2: Chain = {
-  id: 97740,
-  name: 'Pepe Unchained V2 Testnet',
+export const pepeUnchainedMainnet: Chain = {
+  id: 97741,
+  name: 'Pepe Unchained Mainnet',
   nativeCurrency: {
     name: 'PEPU',
     symbol: 'PEPU',
     decimals: 18,
   },
   rpcUrls: {
-    default: { http: ['https://rpc-pepu-v2-testnet-vn4qxxp9og.t.conduit.xyz'] },
-    public: { http: ['https://rpc-pepu-v2-testnet-vn4qxxp9og.t.conduit.xyz'] },
+    default: { http: ['https://rpc-pepu-v2-mainnet-0.t.conduit.xyz'] },
+    public: { http: ['https://rpc-pepu-v2-mainnet-0.t.conduit.xyz'] },
   },
   blockExplorers: {
-    default: { name: 'PepeScan Testnet', url: 'https://testnet.pepuscan.com/' },
+    default: { 
+      name: 'PepeScan Mainnet', 
+      url: 'https://explorer-pepu-v2-mainnet-0.t.conduit.xyz'
+    },
   },
-  testnet: true,
+  testnet: false,
 };
 
 export const config = getDefaultConfig({
   appName: 'Springfield',
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
-  chains: [pepeUnchainedV2],
+  chains: [pepeUnchainedMainnet],
   ssr: true,
   transports: {
-    [pepeUnchainedV2.id]: http(),
+    [pepeUnchainedMainnet.id]: http(),
   },
 }); 

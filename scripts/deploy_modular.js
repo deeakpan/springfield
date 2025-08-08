@@ -12,8 +12,14 @@ async function main() {
     console.log(`💰 Account balance: ${ethers.formatEther(balance)} PEPU\n`);
 
     // Configuration
-    const SPRING_TOKEN = "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1";
+    const SPRING_TOKEN = process.env.NEXT_PUBLIC_SPRING_ADDRESS || "0x82144C93bd531E46F31033FE22D1055Af17A514c";
     const PLATFORM_FEE = 500; // 5% fee in basis points
+    
+    if (!SPRING_TOKEN || SPRING_TOKEN === "0x0000000000000000000000000000000000000000") {
+        console.error("❌ Please set NEXT_PUBLIC_SPRING_ADDRESS in .env file!");
+        console.log("💡 Use your deployed ERC20 token address (SPRING)");
+        return;
+    }
     
     console.log("📋 Configuration:");
     console.log(`   SPRING Token: ${SPRING_TOKEN}`);
