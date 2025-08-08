@@ -42,32 +42,32 @@ class AuctionBot {
         console.log(`👛 Bot address: ${this.wallet.address}`);
     }
 
-    // Get next Thursday 22:49 UTC timestamp
-    getNextThursdayTwentyTwoFortyNine() {
+    // Get next Friday 6:58 AM UTC timestamp
+    getNextFridaySixFiftyEight() {
         const now = new Date();
-        const thursday = new Date(now);
+        const friday = new Date(now);
         
-        // Get days until next Thursday (4 = Thursday)
-        const daysUntilThursday = (11 - now.getDay()) % 7;
-        thursday.setDate(now.getDate() + (daysUntilThursday === 0 ? 7 : daysUntilThursday));
+        // Get days until next Friday (5 = Friday)
+        const daysUntilFriday = (12 - now.getDay()) % 7;
+        friday.setDate(now.getDate() + (daysUntilFriday === 0 ? 7 : daysUntilFriday));
         
-        // Set to 22:49 UTC
-        thursday.setUTCHours(22, 49, 0, 0);
+        // Set to 6:58 AM UTC
+        friday.setUTCHours(6, 58, 0, 0);
         
-        return thursday;
+        return friday;
     }
 
-    // FIXED: Check if it's time to start auction (Thursday 22:49 UTC)
+    // FIXED: Check if it's time to start auction (Friday 6:58 AM UTC)
     shouldStartAuction() {
         const now = new Date();
-        const isThursday = now.getUTCDay() === 4; // Thursday = 4
-        const isCorrectHour = now.getUTCHours() === 22; // Must be 22:xx UTC
-        const isInTimeWindow = now.getUTCMinutes() >= 49 && now.getUTCMinutes() <= 59; // 22:49 to 22:59
+        const isFriday = now.getUTCDay() === 5; // Friday = 5
+        const isCorrectHour = now.getUTCHours() === 6; // Must be 6:xx UTC
+        const isInTimeWindow = now.getUTCMinutes() >= 58 && now.getUTCMinutes() <= 59; // 6:58 to 6:59
         
         // ALL three conditions must be true
-        const shouldStart = isThursday && isCorrectHour && isInTimeWindow;
+        const shouldStart = isFriday && isCorrectHour && isInTimeWindow;
         
-        console.log(`🔍 DEBUG: isThursday=${isThursday}, isCorrectHour=${isCorrectHour}, isInTimeWindow=${isInTimeWindow}, shouldStart=${shouldStart}`);
+        console.log(`🔍 DEBUG: isFriday=${isFriday}, isCorrectHour=${isCorrectHour}, isInTimeWindow=${isInTimeWindow}, shouldStart=${shouldStart}`);
         console.log(`🔍 DEBUG: Current UTC time: ${now.getUTCHours()}:${now.getUTCMinutes().toString().padStart(2, '0')}, Day: ${now.getUTCDay()}`);
         
         return shouldStart;
@@ -309,10 +309,10 @@ class AuctionBot {
                     await this.startAuction();
                 } else {
                     console.log('⏳ Conditions not met. Waiting for next opportunity...');
-                    const nextThursday = this.getNextThursdayTwentyTwoFortyNine();
-                    console.log(`⏳ Next auction starts: ${nextThursday.toISOString()} (UTC)`);
+                    const nextFriday = this.getNextFridaySixFiftyEight();
+                    console.log(`⏳ Next auction starts: ${nextFriday.toISOString()} (UTC)`);
                     
-                    const minutesUntilNext = Math.floor((nextThursday - currentTime) / 1000 / 60);
+                    const minutesUntilNext = Math.floor((nextFriday - currentTime) / 1000 / 60);
                     if (minutesUntilNext > 0) {
                         console.log(`⏰ Time until next auction: ${minutesUntilNext} minutes`);
                     }
@@ -320,15 +320,15 @@ class AuctionBot {
                 break;
                 
             case 2: // DISPLAY_PERIOD
-                console.log('📺 In DISPLAY PERIOD - waiting for next Thursday...');
-                const nextThursday = this.getNextThursdayTwentyTwoEleven();
-                const minutesUntilNext = Math.floor((nextThursday - currentTime) / 1000 / 60);
-                console.log(`⏳ Next auction starts: ${nextThursday.toISOString()} (UTC)`);
+                console.log('📺 In DISPLAY PERIOD - waiting for next Friday...');
+                const nextFriday = this.getNextFridaySixFiftyEight();
+                const minutesUntilNext = Math.floor((nextFriday - currentTime) / 1000 / 60);
+                console.log(`⏳ Next auction starts: ${nextFriday.toISOString()} (UTC)`);
                 console.log(`⏰ Time until next auction: ${Math.max(0, minutesUntilNext)} minutes`);
                 
-                // Only start new auction if it's time for next Thursday cycle
-                if (now >= nextThursday.getTime() / 1000 && this.shouldStartAuction()) {
-                    console.log('🔄 New Thursday cycle! Resetting and starting new auction...');
+                // Only start new auction if it's time for next Friday cycle
+                if (now >= nextFriday.getTime() / 1000 && this.shouldStartAuction()) {
+                    console.log('🔄 New Friday cycle! Resetting and starting new auction...');
                     await this.resetAuction();
                     console.log('⏳ Waiting 5 seconds before starting new auction...');
                     setTimeout(async () => {

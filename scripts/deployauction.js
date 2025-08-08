@@ -103,7 +103,7 @@ async function main() {
     console.log("   npm start");
     console.log("");
     console.log("4. 🎯 Bot will automatically:");
-    console.log("   - Start auctions every Monday 12 PM UTC");
+    console.log("   - Start auctions every Friday 6:58 AM UTC");
     console.log("   - End auctions after 24 hours + extensions");
     console.log("   - Forward winning bids to recipient");
     console.log("");
