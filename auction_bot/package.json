@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "main": "auction.js",
   "scripts": {
+    "start": "node auction.js",
+    "dev": "nodemon auction.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -14,5 +16,8 @@
     "ethers": "^6.15.0",
     "git": "^0.1.5",
     "viem": "^2.33.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
   }
 }

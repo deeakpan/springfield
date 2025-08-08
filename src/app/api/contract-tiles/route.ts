@@ -37,7 +37,9 @@ export async function GET(req: NextRequest) {
     
     await Promise.all(events.map(async (event) => {
       try {
-        const { owner, tileId, metadataUri, isNativePayment } = event.args!;
+        // Type assertion for ethers event
+        const eventLog = event as ethers.EventLog;
+        const { owner, tileId, metadataUri, isNativePayment } = eventLog.args;
         
         // Fetch metadata from IPFS
         if (metadataUri && metadataUri.startsWith('ipfs://')) {
