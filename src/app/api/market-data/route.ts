@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(req: NextRequest) {
   try {
     // Fetch market data from GeckoTerminal API
-    const response = await fetch('https://api.geckoterminal.com/api/v2/networks/pepe-unchained/pools/0x71942200c579319c89c357b55a9d5c0e0ad2403e');
+    const response = await fetch('https://api.geckoterminal.com/api/v2/networks/pepe-unchained/pools/0xb1ff9a6a353e7ada85a6a100b7992fde9de566f3');
     
     if (!response.ok) {
       throw new Error('Failed to fetch market data');
@@ -35,6 +35,10 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching market data:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    });
     return NextResponse.json({ 
       success: false, 
       error: 'Failed to fetch market data',
