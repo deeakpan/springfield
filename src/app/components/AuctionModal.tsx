@@ -14,7 +14,8 @@ const AUCTION_ABI = [
   "function hasAuctionBeenExtendedForNoBids(uint256 _auctionId) external view returns (bool)",
   "function placeBid(uint256 _amount, string _name, string _description, string _metadataUrl) external",
   "function bidderRefunds(address bidder, uint256 auctionId) external view returns (uint256)",
-  "function biddingToken() external view returns (address)"
+  "function biddingToken() external view returns (address)",
+  "function getCurrentAuctionInfo() external view returns (tuple(uint256 auctionId, uint256 startTime, uint256 endTime, uint256 totalBids, uint256 totalAmount, uint256 uniqueBidders, address highestBidder, uint256 highestBidAmount, bool isActive, bool hasWinner, bool hasBeenExtendedForNoBids, tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId) winningBid))"
 ];
 
 // FIXED: ERC20 ABI for token operations
@@ -45,14 +46,17 @@ interface AuctionModalProps {
 
 export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModalProps) {
   const [step, setStep] = useState<'form' | 'success'>('form');
-  const [userType, setUserType] = useState<'user' | 'project' | null>(null);
+  const [userType, setUserType] = useState<'user' | 'project' | ''>('');
   const [form, setForm] = useState({
     name: '',
     bidAmount: '',
-    twitter: '',
-    discord: '',
     website: '',
   });
+  const [userSocialPlatform, setUserSocialPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
+  const [userSocialValue, setUserSocialValue] = useState('');
+  const [projectPrimaryPlatform, setProjectPrimaryPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
+  const [projectPrimaryValue, setProjectPrimaryValue] = useState('');
+  const [projectAdditionalLinks, setProjectAdditionalLinks] = useState(['', '']);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [imageFile, setImageFile] = useState<FileList | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -67,8 +71,11 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     auctionId: 0,
     endTime: 0,
     totalBids: 0,
-    hasBeenExtendedForNoBids: false
+    hasBeenExtendedForNoBids: false,
+    highestBid: '0',
+    highestBidder: ''
   });
+  const [userBalance, setUserBalance] = useState('0');
   const [auctionState, setAuctionState] = useState<0 | 1 | 2>(0); // 0=INACTIVE, 1=ACTIVE, 2=DISPLAY_PERIOD
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -93,6 +100,51 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
       return () => clearInterval(timer);
     }
   }, [auctionState, auctionInfo.endTime]);
+
+  // Update balance when wallet changes
+  useEffect(() => {
+    const checkBalance = async () => {
+      try {
+        if (!SPRFD_TOKEN_ADDRESS) {
+          console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
+          return;
+        }
+
+        if (window.ethereum) {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          console.log("🔑 Connected wallet:", signer.address);
+          console.log("🪙 SPRFD token address:", SPRFD_TOKEN_ADDRESS);
+
+          const sprfdContract = new ethers.Contract(
+            SPRFD_TOKEN_ADDRESS,
+            ["function balanceOf(address) view returns (uint256)"],
+            provider
+          );
+
+          const balance = await sprfdContract.balanceOf(signer.address);
+          const formattedBalance = ethers.formatEther(balance);
+          console.log("💰 Raw balance:", balance.toString());
+          console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
+          setUserBalance(formattedBalance);
+        }
+      } catch (error: any) {
+        console.error("❌ Error fetching balance:", error);
+        setUserBalance('0');
+      }
+    };
+
+    if (isOpen) {
+      checkBalance();
+      // Listen for account changes
+      if (window.ethereum) {
+        window.ethereum.on('accountsChanged', checkBalance);
+        return () => {
+          window.ethereum.removeListener('accountsChanged', checkBalance);
+        };
+      }
+    }
+  }, [isOpen]);
 
   // Handle bid submission
   const handleBid = async () => {
@@ -263,30 +315,67 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
       if (stateNumber === 1) { // ACTIVE
         console.log("🔥 Auction is ACTIVE - fetching detailed info...");
         
-        // Get auction ID
-        const auctionId = await contract.currentAuctionId();
-        const auctionIdNumber = Number(auctionId);
-        console.log("🆔 Current auction ID:", auctionIdNumber);
-        
-        // Get auction end time
-        const endTime = await contract.auctionEndTime();
-        const endTimeNumber = Number(endTime);
-        console.log("⏰ Auction end time:", endTimeNumber, "Current time:", Math.floor(Date.now() / 1000));
-        
-        // Get bid count
-        const bidCount = await contract.getBidCount(auctionIdNumber);
-        const bidCountNumber = Number(bidCount);
-        console.log("📊 Total bids:", bidCountNumber);
-        
-        // Check if extended for no bids
-        const hasBeenExtended = await contract.hasAuctionBeenExtendedForNoBids(auctionIdNumber);
-        console.log("🔄 Has been extended for no bids:", hasBeenExtended);
-        
+        // Get all auction info in one call
+        const info = await contract.getCurrentAuctionInfo();
+        console.log("📊 Current auction info:", {
+          auctionId: Number(info.auctionId),
+          startTime: Number(info.startTime),
+          endTime: Number(info.endTime),
+          totalBids: Number(info.totalBids),
+          totalAmount: ethers.formatEther(info.totalAmount),
+          uniqueBidders: Number(info.uniqueBidders),
+          highestBidder: info.highestBidder,
+          highestBidAmount: ethers.formatEther(info.highestBidAmount),
+          isActive: info.isActive,
+          hasWinner: info.hasWinner,
+          hasBeenExtendedForNoBids: info.hasBeenExtendedForNoBids
+        });
+
+        // Get user's SPRFD balance
+        try {
+          if (!SPRFD_TOKEN_ADDRESS) {
+            console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
+            return;
+          }
+
+          if (window.ethereum) {
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            console.log("🔑 Connected wallet:", signer.address);
+            console.log("🪙 SPRFD token address:", SPRFD_TOKEN_ADDRESS);
+
+            const sprfdContract = new ethers.Contract(
+              SPRFD_TOKEN_ADDRESS,
+              ["function balanceOf(address) view returns (uint256)"],
+              provider
+            );
+
+            const balance = await sprfdContract.balanceOf(signer.address);
+            const formattedBalance = ethers.formatEther(balance);
+            console.log("💰 Raw balance:", balance.toString());
+            console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
+            setUserBalance(formattedBalance);
+          } else {
+            console.error("❌ No wallet connected!");
+          }
+        } catch (error: any) {
+          console.error("❌ Error fetching balance:", error);
+          console.error("📍 Token address:", SPRFD_TOKEN_ADDRESS);
+          console.error("🔧 Error details:", {
+            name: error.name,
+            message: error.message,
+            code: error.code,
+            reason: error.reason
+          });
+        }
+
         const parsedInfo = {
-          auctionId: auctionIdNumber,
-          endTime: endTimeNumber,
-          totalBids: bidCountNumber,
-          hasBeenExtendedForNoBids: hasBeenExtended
+          auctionId: Number(info.auctionId),
+          endTime: Number(info.endTime),
+          totalBids: Number(info.totalBids),
+          hasBeenExtendedForNoBids: info.hasBeenExtendedForNoBids,
+          highestBid: ethers.formatEther(info.highestBidAmount),
+          highestBidder: info.highestBidder
         };
         
         console.log("✅ Parsed auction info:", parsedInfo);
@@ -294,18 +383,20 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
         
         // Calculate time remaining
         const now = Math.floor(Date.now() / 1000);
-        const remaining = Math.max(0, endTimeNumber - now);
+        const remaining = Math.max(0, Number(info.endTime) - now);
         setTimeLeft(remaining);
         
       } else {
         console.log("⏸️ Auction not active, state:", stateNumber);
         // Reset auction info for inactive states
-        setAuctionInfo({
-          auctionId: 0,
-          endTime: 0,
-          totalBids: 0,
-          hasBeenExtendedForNoBids: false
-        });
+                  setAuctionInfo({
+            auctionId: 0,
+            endTime: 0,
+            totalBids: 0,
+            hasBeenExtendedForNoBids: false,
+            highestBid: '0',
+            highestBidder: ''
+          });
         setTimeLeft(0);
       }
     } catch (error: any) {
@@ -339,8 +430,11 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   useEffect(() => {
     if (isOpen) {
       setStep('form');
-      setUserType(null);
-      setForm({ name: '', bidAmount: '', twitter: '', discord: '', website: '' });
+      setUserType('');
+      setForm({ name: '', bidAmount: '', website: '' });
+      setUserSocialValue('');
+      setProjectPrimaryValue('');
+      setProjectAdditionalLinks(['', '']);
       setErrors({});
       setImageFile(null);
       setImagePreview(null);
@@ -412,7 +506,15 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    {auctionInfo.totalBids === 0 ? (
                      <p className="text-sm font-bold text-blue-800">🎯 No bids yet - be the first!</p>
                    ) : (
-                     <p className="text-sm font-bold text-yellow-800">💰 {auctionInfo.totalBids} bid(s) placed</p>
+                     <>
+                       <p className="text-sm font-bold text-yellow-800">💰 {auctionInfo.totalBids} bid(s) placed</p>
+                       <p className="text-xs text-gray-600 mt-1">
+                         Highest bid: {auctionInfo.highestBid} SPRFD
+                       </p>
+                       <p className="text-xs text-gray-600 mt-1">
+                         Highest bidder: {auctionInfo.highestBidder || 'No bids yet'}
+                       </p>
+                     </>
                    )}
                    {auctionInfo.hasBeenExtendedForNoBids && (
                      <p className="text-xs text-orange-800 mt-1">⏰ Extended for no bids</p>
@@ -446,6 +548,67 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    if (!form.name.trim()) errs.name = 'Name is required';
                    if (!form.bidAmount.trim()) errs.bidAmount = 'Bid amount is required';
                    if (!imageFile) errs.imageFile = 'Image is required';
+
+                   // Social validation
+                   if (userType === 'user') {
+                     if (!userSocialValue.trim()) {
+                       errs.userSocialValue = 'Username/ID is required';
+                     } else {
+                       let url = '';
+                       if (userSocialPlatform === 'telegram') {
+                         url = `https://t.me/${userSocialValue}`;
+                         if (!/^https:\/\/t\.me\/[a-zA-Z0-9_]{5,}$/.test(url)) {
+                           errs.userSocialValue = 'Must be a valid Telegram username (min 5 chars)';
+                         }
+                       } else if (userSocialPlatform === 'discord') {
+                         url = `https://discord.com/users/${userSocialValue}`;
+                         if (!/^https:\/\/discord\.com\/users\/[0-9]{5,}$/.test(url)) {
+                           errs.userSocialValue = 'Must be a valid Discord user ID (5+ digits)';
+                         }
+                       } else if (userSocialPlatform === 'x') {
+                         url = `https://x.com/${userSocialValue}`;
+                         if (!/^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}$/.test(url)) {
+                           errs.userSocialValue = 'Must be a valid X (Twitter) username (1-15 chars)';
+                         }
+                       }
+                     }
+                   } else if (userType === 'project') {
+                     if (!projectPrimaryValue.trim()) {
+                       errs.projectPrimaryValue = 'Primary social link is required';
+                     } else {
+                       if (projectPrimaryPlatform === 'telegram') {
+                         if (!/^https:\/\/t\.me\/(\+|c\/|[a-zA-Z0-9_]{5,})/.test(projectPrimaryValue)) {
+                           errs.projectPrimaryValue = 'Must be a valid Telegram group/channel link';
+                         }
+                       } else if (projectPrimaryPlatform === 'discord') {
+                         if (!/^https:\/\/(discord\.gg|discord\.com\/invite)\/[\w-]+$/.test(projectPrimaryValue)) {
+                           errs.projectPrimaryValue = 'Must be a valid Discord server invite link';
+                         }
+                       } else if (projectPrimaryPlatform === 'x') {
+                         if (!/^https:\/\/x\.com\/[A-Za-z0-9_]{1,15}$/.test(projectPrimaryValue)) {
+                           errs.projectPrimaryValue = 'Must be a valid X (Twitter) profile link';
+                         }
+                       }
+                     }
+                     // At least one additional social link required
+                     if (!projectAdditionalLinks[0].trim() && !projectAdditionalLinks[1].trim()) {
+                       errs.projectAdditionalLinks0 = 'At least one additional social link is required';
+                       errs.projectAdditionalLinks1 = 'At least one additional social link is required';
+                     } else {
+                       projectAdditionalLinks.forEach((link, i) => {
+                         if (link && !/^https?:\/\/.+\..+/.test(link)) {
+                           errs[`projectAdditionalLinks${i}`] = 'Must be a valid URL';
+                         }
+                       });
+                     }
+                   }
+
+                   // Optional website validation
+                   if (form.website) {
+                     if (!/^https?:\/\/.+\..+/.test(form.website)) {
+                       errs.website = 'Must be a valid website URL';
+                     }
+                   }
                    setErrors(errs);
                    if (Object.keys(errs).length === 0) {
                      handleBid();
@@ -458,25 +621,25 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                  <div className="flex justify-center gap-4 mb-4">
                    <button
                      type="button"
-                     className={`rounded-md px-6 py-2 text-lg font-bold border-2 border-black ${
-                       userType === 'user' ? 'bg-blue-500 text-black' : 'bg-gray-200 text-gray-600'
-                     } hover:bg-blue-400 transition-all duration-200`}
+                     className={`rounded-md px-6 py-2 text-lg font-bold border-2 border-black transition-all duration-200 ${
+                       userType === 'user' ? 'bg-green-500 text-black' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                     }`}
                      onClick={() => setUserType('user')}
                    >
                      <User className="inline w-5 h-5 mr-2" /> User
                    </button>
                    <button
                      type="button"
-                     className={`rounded-md px-6 py-2 text-lg font-bold border-2 border-black ${
-                       userType === 'project' ? 'bg-green-500 text-black' : 'bg-gray-200 text-gray-600'
-                     } hover:bg-green-400 transition-all duration-200`}
+                     className={`rounded-md px-6 py-2 text-lg font-bold border-2 border-black transition-all duration-200 ${
+                       userType === 'project' ? 'bg-green-500 text-black' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                     }`}
                      onClick={() => setUserType('project')}
                    >
                      <Users className="inline w-5 h-5 mr-2" /> Project
                    </button>
                  </div>
+                 {errors.type && <div className="text-red-500 text-sm text-center mb-4">{errors.type}</div>}
 
-                 {errors.type && <div className="text-red-500 text-sm mb-4">{errors.type}</div>}
                  {userType ? (
                    <>
                      <div className="flex flex-col w-full text-left space-y-4">
@@ -492,37 +655,93 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                        </div>
 
                        {/* Social Links */}
-                       <div className="flex flex-col w-full text-left">
-                         <label className="mb-1 font-semibold text-black">Twitter (optional)</label>
-                         <input
-                           className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400"
-                           placeholder="@username"
-                           value={form.twitter}
-                           onChange={e => setForm(f => ({ ...f, twitter: e.target.value }))}
-                         />
-                       </div>
-
-                       <div className="flex flex-col w-full text-left">
-                         <label className="mb-1 font-semibold text-black">Discord (optional)</label>
-                         <input
-                           className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400"
-                           placeholder="username#0000"
-                           value={form.discord}
-                           onChange={e => setForm(f => ({ ...f, discord: e.target.value }))}
-                         />
-                       </div>
-
-                       {userType === 'project' && (
+                       {userType === 'user' ? (
                          <div className="flex flex-col w-full text-left">
-                           <label className="mb-1 font-semibold text-black">Website (optional)</label>
+                           <label className="mb-1 font-semibold text-black">Social Platform</label>
+                           <select
+                             className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                             value={userSocialPlatform}
+                             onChange={e => setUserSocialPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                           >
+                             <option value="telegram">Telegram</option>
+                             <option value="discord">Discord</option>
+                             <option value="x">X (Twitter)</option>
+                           </select>
                            <input
-                             className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400"
-                             placeholder="https://..."
-                             value={form.website}
-                             onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                             className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full mt-2"
+                             placeholder={
+                               userSocialPlatform === 'telegram'
+                                 ? 'Telegram username'
+                                 : userSocialPlatform === 'discord'
+                                 ? 'Discord user ID'
+                                 : 'X (Twitter) username'
+                             }
+                             value={userSocialValue}
+                             onChange={e => setUserSocialValue(e.target.value)}
                            />
+                           {errors.userSocialValue && <div className="text-red-500 text-sm mt-1">{errors.userSocialValue}</div>}
                          </div>
+                       ) : (
+                         <>
+                           <div className="flex flex-col w-full text-left">
+                             <label className="mb-1 font-semibold text-black">Primary Social Link</label>
+                             <select
+                               className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                               value={projectPrimaryPlatform}
+                               onChange={e => setProjectPrimaryPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                             >
+                               <option value="telegram">Telegram</option>
+                               <option value="discord">Discord</option>
+                               <option value="x">X (Twitter)</option>
+                             </select>
+                             <input
+                               className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full mt-2"
+                               placeholder={
+                                 projectPrimaryPlatform === 'telegram'
+                                   ? 'Telegram group/channel link'
+                                   : projectPrimaryPlatform === 'discord'
+                                   ? 'Discord server invite'
+                                   : 'X (Twitter) profile link'
+                               }
+                               value={projectPrimaryValue}
+                               onChange={e => setProjectPrimaryValue(e.target.value)}
+                             />
+                             {errors.projectPrimaryValue && <div className="text-red-500 text-sm mt-1">{errors.projectPrimaryValue}</div>}
+                           </div>
+
+                           {/* Additional Social Links */}
+                           {[0, 1].map(i => (
+                             <div key={i} className="flex flex-col w-full text-left">
+                               <label className="mb-1 font-semibold text-black">Additional Social Link {i + 1}</label>
+                               <input
+                                 className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                                 placeholder="https://..."
+                                 value={projectAdditionalLinks[i]}
+                                 onChange={e => {
+                                   const newLinks = [...projectAdditionalLinks];
+                                   newLinks[i] = e.target.value;
+                                   setProjectAdditionalLinks(newLinks);
+                                 }}
+                               />
+                               {errors[`projectAdditionalLinks${i}`] && (
+                                 <div className="text-red-500 text-sm mt-1">{errors[`projectAdditionalLinks${i}`]}</div>
+                               )}
+                             </div>
+                           ))}
+                         </>
                        )}
+
+                       {/* Optional Website */}
+                       <div className="flex flex-col w-full text-left">
+                         <label className="mb-1 font-semibold text-black">Website (optional)</label>
+                         <input
+                           className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                           placeholder="https://..."
+                           value={form.website}
+                           onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                         />
+                         {errors.website && <div className="text-red-500 text-sm mt-1">{errors.website}</div>}
+                       </div>
                      </div>
                    </>
                  ) : (
@@ -531,16 +750,39 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
 
                  <div className="flex flex-col w-full text-left">
                    <label className="mb-1 font-semibold text-black">Bid Amount (SPRFD)</label>
-                   <input
-                     type="number"
-                     className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400"
-                     placeholder="Enter bid amount"
-                     value={form.bidAmount}
-                     onChange={e => setForm(f => ({ ...f, bidAmount: e.target.value }))}
-                     min="0"
-                     step="0.01"
-                   />
-                   {errors.bidAmount && <div className="text-red-500 text-sm mt-1">{errors.bidAmount}</div>}
+                   <div className="space-y-1">
+                     <input
+                       type="number"
+                       className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
+                       placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'} SPRFD`}
+                       value={form.bidAmount}
+                       onChange={e => {
+                         const value = e.target.value;
+                         setForm(f => ({ ...f, bidAmount: value }));
+                         
+                         // Clear any existing bid amount error
+                         setErrors(errs => ({ ...errs, bidAmount: '' }));
+                         
+                         if (value) {
+                           const bidAmount = Number(value);
+                           const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 1000;
+                           const balance = Number(userBalance);
+                           
+                           if (bidAmount < minBid) {
+                             setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRFD (current highest + 1000)` }));
+                           } else if (bidAmount > balance) {
+                             setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRFD` }));
+                           }
+                         }
+                       }}
+                       min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'}
+                       step="0.01"
+                     />
+                     <div className="text-sm text-gray-600">
+                       Your balance: {Number(userBalance).toFixed(2)} SPRFD
+                     </div>
+                     {errors.bidAmount && <div className="text-red-500 text-sm">{errors.bidAmount}</div>}
+                   </div>
                  </div>
 
                  <div className="flex flex-col w-full text-left">
@@ -591,15 +833,26 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    <button
                      type="button"
                      className="rounded-md px-6 py-2 text-lg font-bold border-2 border-black bg-gray-200 text-black hover:bg-gray-300 transition-all duration-200"
-                     onClick={() => setUserType(null)}
+                     onClick={() => setUserType('')}
                    >
                      <ArrowLeft className="inline w-4 h-4 mr-1" /> Back
                    </button>
                    <button
                      type="submit"
-                     className="rounded-md px-6 py-2 text-lg font-bold border-2 border-black bg-yellow-300 text-black hover:bg-yellow-200 transition-all duration-200"
+                     className="rounded-md px-6 py-2 text-lg font-bold border-2 border-black bg-green-500 text-black hover:bg-green-400 transition-all duration-200 flex items-center"
+                     disabled={uploading}
                    >
-                     Next <ArrowRight className="inline w-4 h-4 ml-1" />
+                     {uploading ? (
+                       <>
+                         <Loader2 className="animate-spin w-5 h-5 mr-2" />
+                         Placing Bid...
+                       </>
+                     ) : (
+                       <>
+                         <ShoppingCart className="w-5 h-5 mr-2" />
+                         Place Bid
+                       </>
+                     )}
                    </button>
                  </div>
                </form>

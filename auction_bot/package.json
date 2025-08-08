@@ -1,0 +1,18 @@
+{
+  "name": "auction_bot",
+  "version": "1.0.0",
+  "main": "auction.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "ethers": "^6.15.0",
+    "git": "^0.1.5",
+    "viem": "^2.33.3"
+  }
+}
