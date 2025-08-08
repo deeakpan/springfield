@@ -51,6 +51,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     name: '',
     bidAmount: '',
     website: '',
+    description: '',
   });
   const [userSocialPlatform, setUserSocialPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
   const [userSocialValue, setUserSocialValue] = useState('');
@@ -73,11 +74,25 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     totalBids: 0,
     hasBeenExtendedForNoBids: false,
     highestBid: '0',
-    highestBidder: ''
+    highestBidder: '',
+    totalAmount: '0',
+    uniqueBidders: 0,
+    hasWinner: false,
+    winningBid: {
+      bidder: '',
+      name: '',
+      description: '',
+      amount: '0',
+      tokenAddress: '',
+      metadataUrl: '',
+      timestamp: 0,
+      auctionId: 0
+    }
   });
   const [userBalance, setUserBalance] = useState('0');
   const [auctionState, setAuctionState] = useState<0 | 1 | 2>(0); // 0=INACTIVE, 1=ACTIVE, 2=DISPLAY_PERIOD
   const [timeLeft, setTimeLeft] = useState(0);
+  const [winningBidMetadata, setWinningBidMetadata] = useState<any>(null);
 
   // Fetch auction state
   useEffect(() => {
@@ -146,6 +161,168 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     }
   }, [isOpen]);
 
+  // FIXED: Enhanced fetchAuctionState function that handles all states properly
+  const fetchAuctionState = async () => {
+    if (!AUCTION_CONTRACT_ADDRESS) {
+      console.error("❌ NEXT_PUBLIC_AUCTION_CONTRACT environment variable not set!");
+      return;
+    }
+    
+    try {
+      console.log("🔍 AuctionModal: Connecting to contract:", AUCTION_CONTRACT_ADDRESS);
+      
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+      if (!rpcUrl) {
+        console.error("❌ NEXT_PUBLIC_RPC_URL not set!");
+        return;
+      }
+      
+      console.log("🔗 Using direct RPC:", rpcUrl);
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
+      
+      const network = await provider.getNetwork();
+      console.log("🌐 RPC Network:", network.chainId);
+      
+      const code = await provider.getCode(AUCTION_CONTRACT_ADDRESS);
+      console.log("📄 Contract code length:", code.length, "characters");
+      
+      if (code === "0x") {
+        console.error("❌ NO CONTRACT FOUND at address:", AUCTION_CONTRACT_ADDRESS);
+        return;
+      }
+      
+      console.log("✅ Contract found! Proceeding with function calls...");
+      
+      const contract = new ethers.Contract(AUCTION_CONTRACT_ADDRESS, AUCTION_ABI, provider);
+      
+      console.log("🔍 AuctionModal: Fetching auction state...");
+      
+      // Get current state
+      const state = await contract.currentState();
+      const stateNumber = Number(state);
+      console.log("📊 Current auction state:", stateNumber, ["INACTIVE", "ACTIVE", "DISPLAY_PERIOD"][stateNumber]);
+      
+      setAuctionState(stateNumber as 0 | 1 | 2);
+
+      // FIXED: Fetch auction info for both ACTIVE (1) and DISPLAY_PERIOD (2) states
+      if (stateNumber === 1 || stateNumber === 2) {
+        console.log(`🔥 Auction is ${stateNumber === 1 ? 'ACTIVE' : 'in DISPLAY_PERIOD'} - fetching detailed info...`);
+        
+        // Get all auction info in one call
+        const info = await contract.getCurrentAuctionInfo();
+        console.log("📊 Full auction info response:", info);
+        
+        // Parse the response properly
+        const parsedInfo = {
+          auctionId: Number(info.auctionId),
+          endTime: Number(info.endTime),
+          totalBids: Number(info.totalBids),
+          hasBeenExtendedForNoBids: Boolean(info.hasBeenExtendedForNoBids),
+          highestBid: ethers.formatEther(info.highestBidAmount),
+          highestBidder: info.highestBidder,
+          totalAmount: ethers.formatEther(info.totalAmount),
+          uniqueBidders: Number(info.uniqueBidders),
+          hasWinner: Boolean(info.hasWinner),
+          winningBid: {
+            bidder: info.winningBid?.bidder || '',
+            name: info.winningBid?.name || '',
+            description: info.winningBid?.description || '',
+            amount: info.winningBid?.amount ? ethers.formatEther(info.winningBid.amount) : '0',
+            tokenAddress: info.winningBid?.tokenAddress || '',
+            metadataUrl: info.winningBid?.metadataUrl || '',
+            timestamp: Number(info.winningBid?.timestamp || 0),
+            auctionId: Number(info.winningBid?.auctionId || 0)
+          }
+        };
+        
+        console.log("✅ Parsed auction info:", parsedInfo);
+        setAuctionInfo(parsedInfo);
+        
+        // Fetch winning bid metadata if available
+        if (stateNumber === 2 && parsedInfo.hasWinner && parsedInfo.winningBid.metadataUrl) {
+          console.log("🔍 Fetching winning bid metadata from IPFS...");
+          const metadata = await fetchMetadataFromIPFS(parsedInfo.winningBid.metadataUrl);
+          setWinningBidMetadata(metadata);
+          console.log("📄 Winning bid metadata:", metadata);
+        }
+        
+        // Only get user balance if auction is active and wallet connected
+        if (stateNumber === 1) {
+          try {
+            if (!SPRFD_TOKEN_ADDRESS) {
+              console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
+              return;
+            }
+
+            if (window.ethereum) {
+              const walletProvider = new ethers.BrowserProvider(window.ethereum);
+              const signer = await walletProvider.getSigner();
+              console.log("🔑 Connected wallet:", signer.address);
+
+              const sprfdContract = new ethers.Contract(
+                SPRFD_TOKEN_ADDRESS,
+                ["function balanceOf(address) view returns (uint256)"],
+                walletProvider
+              );
+
+              const balance = await sprfdContract.balanceOf(signer.address);
+              const formattedBalance = ethers.formatEther(balance);
+              console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
+              setUserBalance(formattedBalance);
+            } else {
+              console.log("❌ No wallet connected!");
+            }
+          } catch (error: any) {
+            console.error("❌ Error fetching balance:", error);
+          }
+          
+          // Calculate time remaining for active auctions
+          const now = Math.floor(Date.now() / 1000);
+          const remaining = Math.max(0, Number(info.endTime) - now);
+          setTimeLeft(remaining);
+        } else {
+          // Display period - no countdown needed
+          setTimeLeft(0);
+        }
+        
+      } else {
+        // State 0 (INACTIVE) - reset everything
+        console.log("⏸️ Auction INACTIVE - resetting state");
+        setAuctionInfo({
+          auctionId: 0,
+          endTime: 0,
+          totalBids: 0,
+          hasBeenExtendedForNoBids: false,
+          highestBid: '0',
+          highestBidder: '',
+          totalAmount: '0',
+          uniqueBidders: 0,
+          hasWinner: false,
+          winningBid: {
+            bidder: '',
+            name: '',
+            description: '',
+            amount: '0',
+            tokenAddress: '',
+            metadataUrl: '',
+            timestamp: 0,
+            auctionId: 0
+          }
+        });
+        setTimeLeft(0);
+      }
+    } catch (error: any) {
+      console.error('❌ AuctionModal: Error fetching auction state:', error);
+      console.error('📍 Contract address:', AUCTION_CONTRACT_ADDRESS);
+      console.error('🔧 Error details:', {
+        name: error.name,
+        message: error.message,
+        code: error.code,
+        reason: error.reason
+      });
+    }
+  };
+
   // Handle bid submission
   const handleBid = async () => {
     setErrorMsg(null);
@@ -180,14 +357,24 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
       const imageCID = imageRes.data.Hash;
       console.log("Image CID:", imageCID);
 
-      // 2. Prepare metadata JSON
+      // 2. Prepare metadata JSON with social links
       const metadata = {
         name: form.name,
+        description: form.description,
         userType: userType,
         bidAmount: form.bidAmount,
         imageCID,
         timestamp: Date.now(),
-        auctionId: auctionInfo.auctionId
+        auctionId: auctionInfo.auctionId,
+        website: form.website || null,
+        socials: userType === 'user' ? {
+          [userSocialPlatform]: userSocialValue
+        } : {
+          primary: {
+            [projectPrimaryPlatform]: projectPrimaryValue
+          },
+          additional: projectAdditionalLinks.filter(link => link.trim())
+        }
       };
       const metadataText = JSON.stringify(metadata, null, 2);
       console.log("Metadata JSON:", metadataText);
@@ -264,153 +451,6 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     };
   }, [isOpen, onClose]);
 
-  const fetchAuctionState = async () => {
-    if (!AUCTION_CONTRACT_ADDRESS) {
-      console.error("❌ NEXT_PUBLIC_AUCTION_CONTRACT environment variable not set!");
-      return;
-    }
-    
-    try {
-      console.log("🔍 AuctionModal: Connecting to contract:", AUCTION_CONTRACT_ADDRESS);
-      
-      // FIXED: Use direct RPC like the bot does instead of wallet provider
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-      if (!rpcUrl) {
-        console.error("❌ NEXT_PUBLIC_RPC_URL not set!");
-        return;
-      }
-      
-      console.log("🔗 Using direct RPC:", rpcUrl);
-      const provider = new ethers.JsonRpcProvider(rpcUrl);
-      
-      // Check network
-      const network = await provider.getNetwork();
-      console.log("🌐 RPC Network:", network.chainId, "Pepe Unchained V2 Testnet");
-      
-      // Check if contract has code
-      const code = await provider.getCode(AUCTION_CONTRACT_ADDRESS);
-      console.log("📄 Contract code length:", code.length, "characters");
-      
-      if (code === "0x") {
-        console.error("❌ NO CONTRACT FOUND at address:", AUCTION_CONTRACT_ADDRESS);
-        console.error("💡 Contract not deployed on network:", network.chainId);
-        return;
-      }
-      
-      console.log("✅ Contract found! Proceeding with function calls...");
-      
-      const contract = new ethers.Contract(AUCTION_CONTRACT_ADDRESS, AUCTION_ABI, provider);
-      
-      console.log("🔍 AuctionModal: Fetching auction state...");
-      
-      // Test currentState call
-      console.log("🧪 Testing currentState() call...");
-      const state = await contract.currentState();
-      const stateNumber = Number(state);
-      console.log("📊 Raw state response:", state);
-      console.log("📊 Current auction state:", stateNumber, ["INACTIVE", "ACTIVE", "DISPLAY_PERIOD"][stateNumber]);
-      
-      setAuctionState(stateNumber as 0 | 1 | 2);
-
-      if (stateNumber === 1) { // ACTIVE
-        console.log("🔥 Auction is ACTIVE - fetching detailed info...");
-        
-        // Get all auction info in one call
-        const info = await contract.getCurrentAuctionInfo();
-        console.log("📊 Current auction info:", {
-          auctionId: Number(info.auctionId),
-          startTime: Number(info.startTime),
-          endTime: Number(info.endTime),
-          totalBids: Number(info.totalBids),
-          totalAmount: ethers.formatEther(info.totalAmount),
-          uniqueBidders: Number(info.uniqueBidders),
-          highestBidder: info.highestBidder,
-          highestBidAmount: ethers.formatEther(info.highestBidAmount),
-          isActive: info.isActive,
-          hasWinner: info.hasWinner,
-          hasBeenExtendedForNoBids: info.hasBeenExtendedForNoBids
-        });
-
-        // Get user's SPRFD balance
-        try {
-          if (!SPRFD_TOKEN_ADDRESS) {
-            console.error("❌ NEXT_PUBLIC_SPRFD_ADDRESS not set!");
-            return;
-          }
-
-          if (window.ethereum) {
-            const provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await provider.getSigner();
-            console.log("🔑 Connected wallet:", signer.address);
-            console.log("🪙 SPRFD token address:", SPRFD_TOKEN_ADDRESS);
-
-            const sprfdContract = new ethers.Contract(
-              SPRFD_TOKEN_ADDRESS,
-              ["function balanceOf(address) view returns (uint256)"],
-              provider
-            );
-
-            const balance = await sprfdContract.balanceOf(signer.address);
-            const formattedBalance = ethers.formatEther(balance);
-            console.log("💰 Raw balance:", balance.toString());
-            console.log("💰 Formatted balance:", formattedBalance, "SPRFD");
-            setUserBalance(formattedBalance);
-          } else {
-            console.error("❌ No wallet connected!");
-          }
-        } catch (error: any) {
-          console.error("❌ Error fetching balance:", error);
-          console.error("📍 Token address:", SPRFD_TOKEN_ADDRESS);
-          console.error("🔧 Error details:", {
-            name: error.name,
-            message: error.message,
-            code: error.code,
-            reason: error.reason
-          });
-        }
-
-        const parsedInfo = {
-          auctionId: Number(info.auctionId),
-          endTime: Number(info.endTime),
-          totalBids: Number(info.totalBids),
-          hasBeenExtendedForNoBids: info.hasBeenExtendedForNoBids,
-          highestBid: ethers.formatEther(info.highestBidAmount),
-          highestBidder: info.highestBidder
-        };
-        
-        console.log("✅ Parsed auction info:", parsedInfo);
-        setAuctionInfo(parsedInfo);
-        
-        // Calculate time remaining
-        const now = Math.floor(Date.now() / 1000);
-        const remaining = Math.max(0, Number(info.endTime) - now);
-        setTimeLeft(remaining);
-        
-      } else {
-        console.log("⏸️ Auction not active, state:", stateNumber);
-        // Reset auction info for inactive states
-                  setAuctionInfo({
-            auctionId: 0,
-            endTime: 0,
-            totalBids: 0,
-            hasBeenExtendedForNoBids: false,
-            highestBid: '0',
-            highestBidder: ''
-          });
-        setTimeLeft(0);
-      }
-    } catch (error: any) {
-      console.error('❌ AuctionModal: Error fetching auction state:', error);
-      console.error('📍 Contract address:', AUCTION_CONTRACT_ADDRESS);
-      console.error('🔧 Error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.code,
-        reason: error.reason
-      });
-    }
-  };
-
   // Format time remaining
   const formatTimeRemaining = (seconds: number) => {
     if (seconds <= 0) return 'Ended';
@@ -424,14 +464,58 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
     return `${secs}s`;
   };
 
+  // Helper function to extract image CID from metadata URL
+  const getImageFromMetadata = (metadataUrl: string) => {
+    if (!metadataUrl) return null;
+    
+    // Extract CID from ipfs:// URL
+    const cid = metadataUrl.replace('ipfs://', '');
+    return `https://gateway.lighthouse.storage/ipfs/${cid}`;
+  };
 
+  // Helper function to fetch metadata from IPFS
+  const fetchMetadataFromIPFS = async (metadataUrl: string) => {
+    if (!metadataUrl) return null;
+    
+    try {
+      const cid = metadataUrl.replace('ipfs://', '');
+      const response = await fetch(`https://gateway.lighthouse.storage/ipfs/${cid}`);
+      if (response.ok) {
+        const metadata = await response.json();
+        return metadata;
+      }
+    } catch (error) {
+      console.error('Failed to fetch metadata from IPFS:', error);
+    }
+    return null;
+  };
+
+  // Helper function to format social links
+  const formatSocialLink = (platform: string, value: string) => {
+    let url = String(value);
+    
+    // For social platforms, show just the platform name
+    if (platform === 'telegram') {
+      url = `https://t.me/${value}`;
+      return { url, displayText: 'Telegram' };
+    } else if (platform === 'discord') {
+      url = `https://discord.com/users/${value}`;
+      return { url, displayText: 'Discord' };
+    } else if (platform === 'x') {
+      url = `https://x.com/${value}`;
+      return { url, displayText: 'X' };
+    }
+    
+    // For other platforms, show full URL
+    return { url, displayText: value };
+  };
 
   // Reset modal state when opened
   useEffect(() => {
     if (isOpen) {
       setStep('form');
       setUserType('');
-      setForm({ name: '', bidAmount: '', website: '' });
+      setForm({ name: '', bidAmount: '', website: '', description: '' });
       setUserSocialValue('');
       setProjectPrimaryValue('');
       setProjectAdditionalLinks(['', '']);
@@ -506,15 +590,15 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    {auctionInfo.totalBids === 0 ? (
                      <p className="text-sm font-bold text-blue-800">🎯 No bids yet - be the first!</p>
                    ) : (
-                     <>
-                       <p className="text-sm font-bold text-yellow-800">💰 {auctionInfo.totalBids} bid(s) placed</p>
-                       <p className="text-xs text-gray-600 mt-1">
-                         Highest bid: {auctionInfo.highestBid} SPRFD
-                       </p>
-                       <p className="text-xs text-gray-600 mt-1">
-                         Highest bidder: {auctionInfo.highestBidder || 'No bids yet'}
-                       </p>
-                     </>
+                    <>
+                     <p className="text-sm font-bold text-yellow-800">💰 {auctionInfo.totalBids} bid(s) placed</p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Highest bid: {auctionInfo.highestBid} SPRFD
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Highest bidder: {auctionInfo.highestBidder ? `${auctionInfo.highestBidder.slice(0, 6)}...${auctionInfo.highestBidder.slice(-4)}` : 'No bids yet'}
+                      </p>
+                    </>
                    )}
                    {auctionInfo.hasBeenExtendedForNoBids && (
                      <p className="text-xs text-orange-800 mt-1">⏰ Extended for no bids</p>
@@ -525,17 +609,187 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
             
                          {auctionState === 2 && (
                <div>
-                 <p className="text-blue-600 font-bold mb-2">📺 Display Period</p>
-                 <p className="text-sm text-gray-600">Auction #{auctionInfo.auctionId} has ended</p>
-                 <p className="text-sm text-gray-600">Total bids: {auctionInfo.totalBids}</p>
+                <h4 className="font-bold text-blue-600 mb-3">🏆 Auction #{auctionInfo.auctionId} Results</h4>
+                
+                {auctionInfo.hasWinner && auctionInfo.winningBid.bidder ? (
+                  <div className="space-y-3">
+                    {/* Winner Banner */}
+                    <div className="bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-lg p-3 border-2 border-yellow-600">
+                      <h5 className="font-bold text-yellow-900 text-lg mb-1">🎉 Winner!</h5>
+                      <p className="font-bold text-yellow-900">{auctionInfo.winningBid.name || 'Unnamed Project'}</p>
+                      <p className="text-sm text-yellow-800">
+                        Winning bid: {auctionInfo.winningBid.amount} SPRFD
+                      </p>
+                    </div>
+                    
+                    {/* Winner Image */}
+                    {winningBidMetadata?.imageCID && (
+                      <div className="bg-white rounded-lg p-3 border-2 border-gray-200">
+                        <img 
+                          src={`https://gateway.lighthouse.storage/ipfs/${winningBidMetadata.imageCID}`}
+                          alt="Winner's project"
+                          className="w-full h-48 object-cover rounded-lg border border-gray-300"
+                        />
                </div>
              )}
+                    
+                    {/* Winner Details */}
+                    <div className="bg-gray-50 rounded-lg p-3 space-y-2">
+                      <div>
+                        <span className="font-semibold text-gray-700">Winner:</span>
+                        <p className="text-sm text-gray-600 break-all">
+                          {auctionInfo.winningBid.bidder.slice(0, 6)}...{auctionInfo.winningBid.bidder.slice(-4)}
+                        </p>
+          </div>
+                      
+                      {auctionInfo.winningBid.description && (
+                        <div>
+                          <span className="font-semibold text-gray-700">Type:</span>
+                          <p className="text-sm text-gray-600">{auctionInfo.winningBid.description}</p>
+        </div>
+                      )}
+                      
+                      <div>
+                        <span className="font-semibold text-gray-700">Bid Time:</span>
+                        <p className="text-sm text-gray-600">
+                          {new Date(auctionInfo.winningBid.timestamp * 1000).toLocaleString()}
+                        </p>
+                      </div>
+                      
+
+                      
+
+                       
+                       {/* Display Social Links */}
+                       {winningBidMetadata?.socials && (
+                         <div>
+                           <span className="font-semibold text-gray-700 block mb-2">📱 Social Links:</span>
+                           <div className="space-y-1">
+                             {winningBidMetadata.userType === 'user' ? (
+                               // User social links - show all except first one (which is used for explore button)
+                               Object.entries(winningBidMetadata.socials).slice(1).map(([platform, value]) => {
+                                 const formatted = formatSocialLink(platform, String(value));
+                                 return (
+                                   <a
+                                     key={platform}
+                                     href={formatted.url}
+                                     target="_blank"
+                                     rel="noopener noreferrer"
+                                     className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                   >
+                                     {formatted.displayText}
+                                   </a>
+                                 );
+                               })
+                             ) : (
+                               // Project social links - show all except first primary (which is used for explore button)
+                               <div className="space-y-1">
+                                 {winningBidMetadata.socials.primary && Object.entries(winningBidMetadata.socials.primary).slice(1).map(([platform, value]) => {
+                                   const formatted = formatSocialLink(platform, String(value));
+                                   return (
+                                     <a
+                                       key={platform}
+                                       href={formatted.url}
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                     >
+                                       {formatted.displayText}
+                                     </a>
+                                   );
+                                 })}
+                                 {winningBidMetadata.socials.additional && winningBidMetadata.socials.additional.map((link: string, index: number) => (
+                                   <a
+                                     key={index}
+                                     href={link}
+                                     target="_blank"
+                                     rel="noopener noreferrer"
+                                     className="inline-block bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm hover:bg-gray-200 transition-colors"
+                                   >
+                                     Link {index + 1}
+                                   </a>
+                                 ))}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                       )}
+                    </div>
+                    
+                    {/* Centered Explore Button */}
+                    <div className="text-center mt-4">
+                      {winningBidMetadata?.website ? (
+                        <a 
+                          href={winningBidMetadata.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block bg-yellow-500 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-colors border-2 border-black"
+                        >
+                          🚀 Explore
+                        </a>
+                      ) : winningBidMetadata?.socials && (
+                        <>
+                          {winningBidMetadata.userType === 'user' ? (
+                            // User social links - show first one as explore button
+                            Object.entries(winningBidMetadata.socials).slice(0, 1).map(([platform, value]) => {
+                              const formatted = formatSocialLink(platform, String(value));
+                              return (
+                                <a
+                                  key={platform}
+                                  href={formatted.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block bg-yellow-500 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-colors border-2 border-black"
+                                >
+                                  🚀 Explore
+                                </a>
+                              );
+                            })
+                          ) : (
+                            // Project social links - show first primary as explore button
+                            winningBidMetadata.socials.primary && Object.entries(winningBidMetadata.socials.primary).slice(0, 1).map(([platform, value]) => {
+                              const formatted = formatSocialLink(platform, String(value));
+                              return (
+                                <a
+                                  key={platform}
+                                  href={formatted.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-block bg-yellow-500 text-black px-6 py-3 rounded-lg font-semibold hover:bg-yellow-400 transition-colors border-2 border-black"
+                                >
+                                  🚀 Explore
+                                </a>
+                              );
+                            })
+                          )}
+                        </>
+                      )}
+                    </div>
+                    
+
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600 font-semibold mb-2">🚫 No Winner</p>
+                    <p className="text-sm text-gray-500">
+                      Auction #{auctionInfo.auctionId} ended with no valid bids
+                    </p>
+                    <div className="bg-gray-50 rounded-lg p-3 mt-3">
+                      <p className="text-sm text-gray-600">
+                        Total bids received: {auctionInfo.totalBids}
+                      </p>
+                      {auctionInfo.hasBeenExtendedForNoBids && (
+                        <p className="text-xs text-orange-700 mt-1">⏰ Was extended for no bids</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-
-
-        {/* Step Content - Same as before but with better error handling */}
+        {/* Step Content */}
         {auctionState === 1 && (
           <div className="space-y-4 w-full">
              {step === 'form' && (
@@ -546,6 +800,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    const errs: Record<string, string> = {};
                    if (!userType) errs.type = 'Please select a type';
                    if (!form.name.trim()) errs.name = 'Name is required';
+                    if (!form.description.trim()) errs.description = 'Description is required';
                    if (!form.bidAmount.trim()) errs.bidAmount = 'Bid amount is required';
                    if (!imageFile) errs.imageFile = 'Image is required';
 
@@ -654,6 +909,28 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                          {errors.name && <div className="text-red-500 text-sm mt-1">{errors.name}</div>}
                        </div>
 
+                        <div>
+                          <label className="mb-1 font-semibold text-black">Description</label>
+                          <textarea
+                            className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full resize-none"
+                            placeholder={userType === 'project' ? 'Describe your project...' : 'Tell us about yourself...'}
+                            value={form.description}
+                            onChange={e => {
+                              const value = e.target.value;
+                              if (value.length <= 200) { // 200 character limit
+                                setForm(f => ({ ...f, description: value }));
+                                setErrors(errs => ({ ...errs, description: '' }));
+                              }
+                            }}
+                            rows={3}
+                            maxLength={200}
+                          />
+                          <div className="text-xs text-gray-500 mt-1 text-right">
+                            {form.description.length}/200 characters
+                          </div>
+                          {errors.description && <div className="text-red-500 text-sm mt-1">{errors.description}</div>}
+                        </div>
+
                        {/* Social Links */}
                        {userType === 'user' ? (
                          <div className="flex flex-col w-full text-left">
@@ -754,7 +1031,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                      <input
                        type="number"
                        className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
-                       placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'} SPRFD`}
+                      placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'} SPRFD`}
                        value={form.bidAmount}
                        onChange={e => {
                          const value = e.target.value;
@@ -765,17 +1042,17 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                          
                          if (value) {
                            const bidAmount = Number(value);
-                           const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 1000;
+                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 1000;
                            const balance = Number(userBalance);
                            
                            if (bidAmount < minBid) {
-                             setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRFD (current highest + 1000)` }));
+                            setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRFD (current highest + 1000)` }));
                            } else if (bidAmount > balance) {
                              setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRFD` }));
                            }
                          }
                        }}
-                       min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'}
+                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '1000.00'}
                        step="0.01"
                      />
                      <div className="text-sm text-gray-600">
@@ -829,6 +1106,12 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                    {errors.imageFile && <div className="text-red-500 text-sm mt-1">{errors.imageFile}</div>}
                  </div>
 
+                {errorMsg && (
+                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                    {errorMsg}
+                  </div>
+                )}
+
                  <div className="flex justify-between mt-4">
                    <button
                      type="button"
@@ -858,8 +1141,6 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                </form>
              )}
 
-
-
             {step === 'success' && (
               <div className="flex flex-col items-center justify-center w-full p-8">
                 <CheckCircle2 className="w-16 h-16 text-green-500 mb-4" />
@@ -875,11 +1156,17 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
         )}
 
         {auctionState === 0 && (
-          <p className="text-center font-bold text-yellow-300">Auction will start soon. Check back later!</p>
+          <div className="text-center">
+            <p className="text-yellow-300 font-bold mb-2">⏳ Next Auction Coming Soon!</p>
+            <p className="text-sm text-gray-600">Check back for the next bidding opportunity</p>
+          </div>
         )}
 
         {auctionState === 2 && (
-          <p className="text-center font-bold text-yellow-300">This auction has ended. Check for the next one!</p>
+          <div className="text-center">
+            <p className="text-yellow-300 font-bold mb-2">🎯 Next Auction Coming Soon!</p>
+            <p className="text-sm text-gray-600">Check back for the next bidding opportunity</p>
+          </div>
         )}
       </div>
     </div>

@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { useState, Suspense } from 'react';
-import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw } from 'lucide-react';
+import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw, Coins } from 'lucide-react';
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
@@ -382,6 +382,10 @@ export default function GridPage() {
               <a href="/marketplace" className="text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4" />
                 Marketplace
+              </a>
+              <a href="/refund" className="text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2">
+                <Coins className="w-4 h-4" />
+                Refunds
               </a>
             </motion.div>
 
