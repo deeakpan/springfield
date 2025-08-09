@@ -6,6 +6,7 @@ import { Map, ShoppingCart, Star, Home, Grid3X3, Wallet, RefreshCw, Coins, Menu,
 import { ConnectButton, darkTheme } from '@rainbow-me/rainbowkit';
 import QRCode from 'react-qr-code';
 import BuyModal from '../components/BuyModal';
+import BulkBuyModal from '../components/BulkBuyModal';
 import AuctionModal from '../components/AuctionModal';
 import { useEffect } from 'react';
 import TileDetailsModal from '../components/TileDetailsModal';
@@ -153,6 +154,9 @@ export default function GridPage() {
   const [tileDetails, setTileDetails] = useState<any>({}); // { tileId: details }
   const [modalDetails, setModalDetails] = useState<any>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [marketData, setMarketData] = useState<any>({ marketCapFormatted: '$0' });
   const [soldTilesCount, setSoldTilesCount] = useState(0);
@@ -524,6 +528,15 @@ export default function GridPage() {
     setModalUserType(null); // Reset user type selection
   };
 
+  const toggleSelectTile = (tileIdStr: string) => {
+    const tileId = parseInt(tileIdStr);
+    if (isNaN(tileId)) return;
+    setSelectedIds((prev) => {
+      if (prev.includes(tileId)) return prev.filter((id) => id !== tileId);
+      return [...prev, tileId];
+    });
+  };
+
   // Handle refresh button click
   const handleRefresh = () => {
     Promise.all([
@@ -617,6 +630,16 @@ export default function GridPage() {
                 <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span className="hidden sm:inline">{isRefreshing ? 'Refreshing...' : 'Refresh Grid'}</span>
                 <span className="sm:hidden">{isRefreshing ? '...' : 'Refresh'}</span>
+              </motion.button>
+              <motion.button
+                onClick={() => { setSelectMode((v) => !v); if (selectMode) setSelectedIds([]); }}
+                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 ${selectMode ? 'bg-green-400' : 'bg-white'} text-black rounded-md font-bold hover:bg-green-300 transition-colors text-xs sm:text-sm border border-black`}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <span className="hidden sm:inline">Bulk</span>
+                <span className="sm:hidden">Bulk</span>
               </motion.button>
               <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
             </div>
@@ -796,6 +819,9 @@ export default function GridPage() {
                     tooltip = 'Available for purchase';
                   }
                   
+                  const isOwned = !!(details && details.owner);
+                  const isSelectable = !isOwned && !tile.isCenterArea;
+                  const isSelected = selectedIds.includes(parseInt(tile.id));
                   return (
                   <motion.div
                     key={tile.id}
@@ -809,12 +835,13 @@ export default function GridPage() {
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         backgroundRepeat: 'no-repeat',
+                        position: 'relative',
                         padding: 0,
                         margin: 0,
                         transform: tile.isCenterArea ? 'perspective(1000px) rotateX(0deg) rotateY(0deg)' : 'none',
                         transformStyle: tile.isCenterArea ? 'preserve-3d' : 'flat',
                         transition: tile.isCenterArea ? 'all 0.3s ease' : 'all 0.2s ease',
-                      boxShadow: details && details.owner ? '0 0 8px rgba(34,197,94,0.6)' : 'none',
+                      boxShadow: isOwned ? '0 0 8px rgba(34,197,94,0.6)' : (isSelected ? '0 0 10px rgba(250,204,21,0.9)' : 'none'),
                     }}
                       whileHover={tile.isCenterArea ? {
                         scale: 1.05,
@@ -838,6 +865,10 @@ export default function GridPage() {
                           // Tile is owned - show details
                           setModalDetails(details);
                         } else {
+                          if (selectMode && isSelectable) {
+                            toggleSelectTile(tile.id);
+                            return;
+                          }
                           // Tile is available - open buy modal
                           handleBuyTile(tile);
                         }
@@ -845,6 +876,17 @@ export default function GridPage() {
                     onMouseEnter={() => setHoveredTile(tile)}
                     onMouseLeave={() => setHoveredTile(null)}
                   >
+                    {selectMode && isSelectable && (
+                      <div className="absolute top-0 left-0 z-20 p-[2px] sm:p-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectTile(tile.id)}
+                          className="w-3 h-3 sm:w-4 sm:h-4 accent-yellow-400 cursor-pointer"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                    )}
                     {tile.isCenterArea ? (
                         <CenterTileFallback 
                           auctionState={auctionState}
@@ -874,6 +916,27 @@ export default function GridPage() {
               </div>
             )}
           </motion.div>
+
+          {/* Sticky bulk footer */}
+          {selectMode && selectedIds.length > 0 && (
+            <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+              <div className="bg-yellow-400 text-black border-2 border-black rounded-lg px-3 py-2 flex items-center gap-2 shadow-lg">
+                <span className="font-bold text-sm sm:text-base">{selectedIds.length} selected</span>
+                <button
+                  className="px-3 py-1 bg-green-500 border border-black rounded-md font-bold text-xs sm:text-sm hover:bg-green-400"
+                  onClick={() => setIsBulkModalOpen(true)}
+                >
+                  Bulk Buy
+                </button>
+                <button
+                  className="px-3 py-1 bg-white border border-black rounded-md font-bold text-xs sm:text-sm hover:bg-gray-100"
+                  onClick={() => setSelectedIds([])}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Hover Info */}
           {hoveredTile && !selectedTile && (
@@ -924,6 +987,13 @@ export default function GridPage() {
         open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         tile={selectedTile || {}}
+      />
+
+      {/* Bulk Buy Modal */}
+      <BulkBuyModal
+        open={isBulkModalOpen}
+        onClose={() => { setIsBulkModalOpen(false); setSelectMode(false); setSelectedIds([]); }}
+        tileIds={selectedIds}
       />
 
       {/* Modal for purchased tile details */}
