@@ -641,7 +641,27 @@ export default function GridPage() {
                 <span className="hidden sm:inline">Bulk</span>
                 <span className="sm:hidden">Bulk</span>
               </motion.button>
-              <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
+              <ConnectButton.Custom>
+                {({ account, chain, openConnectModal, openAccountModal, authenticationStatus, mounted }) => {
+                  const ready = mounted && authenticationStatus !== 'loading';
+                  const connected = ready && account && chain && (!authenticationStatus || authenticationStatus === 'authenticated');
+                  if (!connected) {
+                    return (
+                      <button onClick={openConnectModal} type="button" className="px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2">
+                        <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
+                        <span>Connect Wallet</span>
+                      </button>
+                    );
+                  }
+                  return (
+                    <button onClick={openAccountModal} type="button" className="px-2 py-1 sm:px-3 sm:py-2 text-xs sm:text-sm rounded-md bg-green-500 text-black font-bold border-2 border-black hover:bg-green-400 transition-all duration-200 flex items-center gap-1 sm:gap-2">
+                      <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span className="sm:hidden">Connected</span>
+                      <span className="hidden sm:inline">{account.displayName}</span>
+                    </button>
+                  );
+                }}
+              </ConnectButton.Custom>
             </div>
           </div>
 

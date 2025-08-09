@@ -188,7 +188,7 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     useEffect(() => {
       if (step === 'price' && open) {
         setLoadingPrice(true);
-        setPrice('15000'); // 15,000 PEPU
+        setPrice('15600'); // 15,600 PEPU
         setLoadingPrice(false);
       }
     }, [step, open]);
