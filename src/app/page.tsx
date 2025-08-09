@@ -498,7 +498,7 @@ export default function Home() {
                   <h4 className="text-xl font-bold text-black mb-3">User flow</h4>
                   <p className="text-gray-800 leading-relaxed">
                     Open the Grid and click the center tile. Choose whether you’re a user or a project, add your name and a short description, provide your socials (and website if you like), upload a small image (≤600KB), and set your bid in $SPRING. We handle the IPFS uploads and the on‑chain bid for you—no pasting metadata links. If you win, you can switch the center between a full image or a QR that points to your primary destination, any time during the 6‑day display period.
-                  </p>
+                  </p>  
                 </div>
               </div>
             </div>
@@ -581,7 +581,7 @@ export default function Home() {
               <ul className="space-y-3 text-gray-300">
                 <li><a href="#" className="hover:text-green-400 transition-colors">Features</a></li>
                 <li><a href="#" className="hover:text-green-400 transition-colors">Grid Explorer</a></li>
-                <li><a href="#" className="hover:text-green-400 transition-colors">Pricing</a></li>
+                <li><a href="/pricing" className="hover:text-green-400 transition-colors">Pricing</a></li>
               </ul>
             </div>
 
