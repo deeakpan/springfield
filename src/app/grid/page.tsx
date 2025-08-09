@@ -312,6 +312,56 @@ export default function GridPage() {
     }
   };
 
+  // Utility: simple sleep
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // Utility: retry wrapper for flaky RPC calls
+  const withRetry = async <T,>(fn: () => Promise<T>, retries = 3, backoffMs = 250): Promise<T> => {
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await fn();
+      } catch (error) {
+        attempt += 1;
+        if (attempt > retries) throw error;
+        await delay(backoffMs * attempt);
+      }
+    }
+  };
+
+  // Utility: process array in batches to avoid RPC overload
+  const processInBatches = async <I, O>(
+    items: I[],
+    batchSize: number,
+    handler: (item: I) => Promise<O>,
+    interBatchDelayMs = 100
+  ): Promise<O[]> => {
+    const results: O[] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map((item) => handler(item).catch(() => null as unknown as O))
+      );
+      results.push(...batchResults);
+      if (interBatchDelayMs > 0 && i + batchSize < items.length) {
+        await delay(interBatchDelayMs);
+      }
+    }
+    return results;
+  };
+
+  // Utility: fetch with timeout to avoid hanging metadata requests
+  const fetchWithTimeout = async (url: string, timeoutMs = 10000): Promise<Response> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
   // NEW: Fetch all tile details using contract functions instead of events
   const fetchTileDetails = async () => {
     try {
@@ -332,12 +382,15 @@ export default function GridPage() {
       const allTileIds = await marketplace.getAllCreatedTiles();
       console.log('All tile IDs:', allTileIds);
 
-      // Step 2: Get details for each tile
-      console.log('Fetching details for each tile...');
-      const allTilesDetails = await Promise.all(
-        allTileIds.map(async (id: bigint) => {
+      // Step 2: Get details for each tile (rate-limited + retries to avoid partial results)
+      console.log('Fetching details for each tile (batched)...');
+      const BATCH_SIZE = 10;
+      const allTilesDetails = await processInBatches<bigint, any | null>(
+        allTileIds,
+        BATCH_SIZE,
+        async (id: bigint) => {
           try {
-            const details = await marketplace.getTileDetails(id);
+            const details = await withRetry(() => marketplace.getTileDetails(id), 3, 300);
             return {
               tileId: id.toString(),
               details: {
@@ -360,77 +413,61 @@ export default function GridPage() {
             console.error(`Error fetching details for tile ${id}:`, error);
             return null;
           }
-        })
+        },
+        100
       );
 
-      // Step 3: Build the tileDetails mapping
+      // Step 3: Build the tileDetails mapping (batched + timeout + retries for metadata)
       const newTileDetails: any = {};
-      let validTilesCount = 0;
-
-      // Process each tile and fetch its metadata
-      for (const tileData of allTilesDetails) {
-        if (tileData) {
-          const { tileId, details } = tileData;
-          
-          // Fetch metadata from IPFS if metadataUri exists
-          let metadata = null;
-          let imageCID = null;
-          
+      const nonNullTiles = (allTilesDetails || []).filter(Boolean) as Array<{ tileId: string; details: any }>;
+      const META_BATCH_SIZE = 8;
+      await processInBatches<{ tileId: string; details: any }, void>(
+        nonNullTiles,
+        META_BATCH_SIZE,
+        async ({ tileId, details }) => {
+          let metadata: any = null;
+          let imageCID: string | null = null;
           if (details.metadataUri) {
             try {
               console.log(`Fetching metadata for tile ${tileId} from: ${details.metadataUri}`);
-              
-              // Handle different IPFS URI formats
-              let metadataUrl = details.metadataUri;
+              let metadataUrl = details.metadataUri as string;
               if (metadataUrl.startsWith('ipfs://')) {
                 metadataUrl = `https://gateway.lighthouse.storage/ipfs/${metadataUrl.replace('ipfs://', '')}`;
               }
-              
-              const metadataResponse = await fetch(metadataUrl);
-              if (metadataResponse.ok) {
-                metadata = await metadataResponse.json();
-                console.log(`✅ Metadata for tile ${tileId}:`, metadata);
-                
-                // Extract image CID with better error handling
+              const response = await withRetry(() => fetchWithTimeout(metadataUrl, 10000), 2, 400);
+              if (response.ok) {
+                metadata = await response.json();
                 if (metadata.imageCID) {
                   imageCID = metadata.imageCID;
-                  console.log(`✅ Image CID for tile ${tileId}:`, imageCID);
                 } else if (metadata.image) {
-                  // Fallback for different metadata structures
                   imageCID = metadata.image;
-                  console.log(`✅ Image (fallback) for tile ${tileId}:`, imageCID);
-                } else {
-                  console.log(`⚠️ No image found in metadata for tile ${tileId}`);
                 }
               } else {
-                console.error(`❌ Failed to fetch metadata for tile ${tileId}: ${metadataResponse.status} ${metadataResponse.statusText}`);
+                console.error(`❌ Failed to fetch metadata for tile ${tileId}: ${response.status} ${response.statusText}`);
               }
             } catch (error) {
               console.error(`❌ Error fetching metadata for tile ${tileId}:`, error);
             }
-          } else {
-            console.log(`⚠️ No metadata URI for tile ${tileId}`);
           }
-          
           newTileDetails[tileId] = {
             ...details,
             name: metadata?.name || `Tile ${tileId}`,
             description: metadata?.description || '',
             imageCID: imageCID,
             metadata: metadata,
-            // Add social and website info from metadata
             socials: metadata?.socials || {},
             website: metadata?.website || null,
             userType: metadata?.userType || 'user',
             address: metadata?.address || details.owner
           };
-          validTilesCount++;
-        }
-      }
+        },
+        120
+      );
 
       setTileDetails(newTileDetails);
-      setSoldTilesCount(validTilesCount);
-      console.log('Loaded contract tiles:', Object.keys(newTileDetails), 'Count:', validTilesCount);
+      // Use the authoritative count from getAllCreatedTiles to prevent flicker if some detail calls failed
+      setSoldTilesCount(Array.isArray(allTileIds) ? allTileIds.length : nonNullTiles.length);
+      console.log('Loaded contract tiles:', Object.keys(newTileDetails), 'Count:', nonNullTiles.length);
       
     } catch (error) {
       console.error('Error fetching tile details from contract:', error);

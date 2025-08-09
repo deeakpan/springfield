@@ -346,7 +346,7 @@ export default function Home() {
             <FeatureCard
               icon={Coins}
               title="Dual Token Payments"
-              description="Buy tiles with $SPRING (our native token) or $PEPU. Staking $SPRING burns tokens, creating price spikes and scarcity."
+              description="Buy tiles with $PEPU (our native token). Stake $PENK to earn $SPRING."
               color="bg-gradient-to-br from-green-100 to-green-200"
               gradient="bg-green-500"
               delay={0.1}
@@ -409,6 +409,100 @@ export default function Home() {
               delay={0.9}
             />
           </div>
+        </div>
+      </section>
+
+      {/* Weekly Auction Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-blue-800">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            className="border-2 border-black rounded-2xl bg-blue-900 p-6 sm:p-10 shadow-xl"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            viewport={{ once: true }}
+          >
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-12">
+              <div className="w-full lg:w-1/2">
+                <div className="inline-flex items-center gap-2 bg-yellow-400 text-black px-3 py-1 rounded-md border-2 border-black mb-4">
+                  <Sparkles className="w-4 h-4" />
+                  <span className="font-bold">THE ATTENTION MACHINE</span>
+                </div>
+                <h3 className="text-3xl md:text-4xl font-extrabold text-yellow-300 mb-4">Weekly Center Auction</h3>
+                <p className="text-white/90 text-lg leading-relaxed mb-3">
+                  Every Monday at 00:00 UTC, a 24‑hour auction opens at an initial bid of 10,000 $SPRING. Bids are placed in $SPRING, and any bid in the final 10 seconds extends the auction by 2 minutes to prevent sniping. The window ends at 00:00 UTC on Tuesday (or after extensions), the highest bid wins, non‑winners can claim full refunds, and the winning content is showcased on the center tile for 6 days.
+                </p>
+                <p className="text-white/80 leading-relaxed mb-6">
+                  We call this the <span className="font-bold text-yellow-300">Attention Machine</span> — a weekly, on‑chain spotlight built to drive traffic across the Pepe Unchained ecosystem. Whether you’re shipping tools, games, DeFi, or community initiatives, the center tile amplifies your message and funnels users to your primary destination.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+                  <div className="p-4 rounded-lg border-2 border-black bg-blue-700/40">
+                    <div className="text-sm font-semibold text-white/80">Schedule</div>
+                    <div className="text-white font-bold">Mon 00:00 UTC → Tue 00:00 UTC (24h)</div>
+                  </div>
+                  <div className="p-4 rounded-lg border-2 border-black bg-blue-700/40">
+                    <div className="text-sm font-semibold text-white/80">Opening Bid</div>
+                    <div className="text-white font-bold">10,000 $SPRING</div>
+                  </div>
+                  <div className="p-4 rounded-lg border-2 border-black bg-blue-700/40">
+                    <div className="text-sm font-semibold text-white/80">Bidding Token</div>
+                    <div className="text-white font-bold">$SPRING</div>
+                  </div>
+                  <div className="p-4 rounded-lg border-2 border-black bg-blue-700/40">
+                    <div className="text-sm font-semibold text-white/80">Anti‑Snipe</div>
+                    <div className="text-white font-bold">+2 min if bid in last 10s</div>
+                  </div>
+                  <div className="p-4 rounded-lg border-2 border-black bg-blue-700/40">
+                    <div className="text-sm font-semibold text-white/80">Display Duration</div>
+                    <div className="text-white font-bold">6 days</div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-white/90">
+                  <div className="flex items-start gap-2"><Star className="w-5 h-5 text-yellow-400 flex-shrink-0" /><p>Mon 00:00 UTC → Tue 00:00 UTC. 24h. Highest bid wins.</p></div>
+                  <div className="flex items-start gap-2"><Star className="w-5 h-5 text-yellow-400 flex-shrink-0" /><p>Last‑10s bids add +2 min. Non‑winners get refunds.</p></div>
+                </div>
+
+                {/* Modes / Value */}
+                <div className="mt-6 p-4 rounded-lg border-2 border-black bg-yellow-50">
+                  <h4 className="text-xl font-extrabold text-black mb-2">Modes</h4>
+                  <ul className="list-disc list-inside space-y-2 text-gray-800">
+                    <li><span className="font-semibold">Universal QR:</span> default QR to onboard everyone fast.</li>
+                    <li><span className="font-semibold">Winner Image / QR:</span> switch to your image or primary link during display.</li>
+                  </ul>
+                  <div className="mt-3 text-gray-900 font-semibold">The ultimate marketing machine for Pepe Unchained.</div>
+                </div>
+
+                <div className="mt-6 flex flex-row gap-2 w-full">
+                  <a href="/grid" className="flex-1 px-3 py-2 sm:px-6 sm:py-3 rounded-md bg-yellow-400 text-black font-bold border border-black sm:border-2 hover:bg-yellow-300 inline-flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base">
+                    <Grid3X3 className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Join the Auction
+                  </a>
+                  <a href="/refund" className="flex-1 px-3 py-2 sm:px-6 sm:py-3 rounded-md bg-green-500 text-black font-bold border border-black sm:border-2 hover:bg-green-400 inline-flex items-center justify-center gap-1 sm:gap-2 text-xs sm:text-base">
+                    <Coins className="w-3 h-3 sm:w-4 sm:h-4" />
+                    Claim Refunds
+                  </a>
+                </div>
+              </div>
+
+              <div className="w-full lg:w-1/2">
+                <div className="p-4 sm:p-6 rounded-xl border-2 border-black bg-yellow-50">
+                  <h4 className="text-xl font-bold text-black mb-3">How it works</h4>
+                  <p className="text-gray-800 leading-relaxed">
+                    Every Monday at 00:00 UTC, the center‑tile auction opens for 24 hours. You place bids in $SPRING; if a bid lands in the final 10 seconds, the timer extends by 2 minutes to prevent snipes. At 00:00 UTC on Tuesday (or after extensions), the highest bid wins. Non‑winners can claim full refunds. The winner’s content then takes over the center tile for 6 days.
+                  </p>
+                </div>
+
+                <div className="mt-4 p-4 sm:p-6 rounded-xl border-2 border-black bg-yellow-50">
+                  <h4 className="text-xl font-bold text-black mb-3">User flow</h4>
+                  <p className="text-gray-800 leading-relaxed">
+                    Open the Grid and click the center tile. Choose whether you’re a user or a project, add your name and a short description, provide your socials (and website if you like), upload a small image (≤600KB), and set your bid in $SPRING. We handle the IPFS uploads and the on‑chain bid for you—no pasting metadata links. If you win, you can switch the center between a full image or a QR that points to your primary destination, any time during the 6‑day display period.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 
