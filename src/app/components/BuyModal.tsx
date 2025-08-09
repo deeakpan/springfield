@@ -4,7 +4,7 @@ import { X, Wallet, User, Users, Globe, Send, ArrowRight, ArrowLeft, Loader2, Sh
 import { TOKENS } from '../../supportedTokens';
 import { ethers } from 'ethers';
 import Image from 'next/image';
-import lighthouse from '@lighthouse-web3/sdk';
+// Uploads are proxied via server API routes to avoid client CORS/mixed-content issues
 
 // Modal Props
 interface BuyModalProps {
@@ -255,7 +255,35 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     fetchAddress();
   }, [open]);
 
-  // Lighthouse upload logic
+  // Utility helpers
+  const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+  const fetchWithTimeout = async (input: RequestInfo, init: RequestInit & { timeoutMs?: number } = {}) => {
+    const { timeoutMs = 15000, ...rest } = init;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, { ...rest, signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+  };
+
+  const withRetry = async <T,>(fn: () => Promise<T>, retries = 2, backoffMs = 400): Promise<T> => {
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await fn();
+      } catch (e) {
+        attempt += 1;
+        if (attempt > retries) throw e;
+        await delay(backoffMs * attempt);
+      }
+    }
+  };
+
+  // Upload + purchase logic
   const handleBuy = async () => {
     setErrorMsg(null);
     setSuccessMsg(null);
@@ -287,15 +315,19 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
     }
     setUploading(true);
     try {
-      // 1. Upload image to Lighthouse directly from browser
-      const apiKey = process.env.NEXT_PUBLIC_LIGHTHOUSE_API_KEY;
-      if (!apiKey) {
-        setErrorMsg("Lighthouse API key not set");
-        setUploading(false);
-        return;
-      }
-      const imageRes = await lighthouse.upload(imageFile as any, apiKey);
-      const imageCID = imageRes.data.Hash;
+      // 1. Upload image via server API (timeout + retry)
+      const imageCID = await withRetry(async () => {
+        const fd = new FormData();
+        fd.append('file', file);
+        const resp = await fetchWithTimeout('/api/upload/image', { method: 'POST', body: fd, timeoutMs: 15000 });
+        if (!resp.ok) {
+          let msg = 'Image upload failed';
+          try { const j = await resp.json(); msg = j.error || msg; } catch {}
+          throw new Error(msg);
+        }
+        const j = await resp.json();
+        return j.cid as string;
+      }, 2, 500);
       console.log("Image CID:", imageCID);
 
       // 2. Prepare metadata JSON with the image CID
@@ -317,9 +349,22 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       const metadataText = JSON.stringify(metadata, null, 2);
       console.log("Metadata JSON:", metadataText);
 
-      // 3. Upload metadata JSON to Lighthouse
-      const metadataRes = await lighthouse.uploadText(metadataText, apiKey, `tile-${tile?.id}-metadata`);
-      const metadataCID = metadataRes.data.Hash;
+      // 3. Upload metadata via server API (timeout + retry)
+      const metadataCID = await withRetry(async () => {
+        const resp = await fetchWithTimeout('/api/upload/metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: metadataText,
+          timeoutMs: 15000,
+        });
+        if (!resp.ok) {
+          let msg = 'Metadata upload failed';
+          try { const j = await resp.json(); msg = j.error || msg; } catch {}
+          throw new Error(msg);
+        }
+        const j = await resp.json();
+        return j.cid as string;
+      }, 2, 500);
       const metadataUri = `ipfs://${metadataCID}`;
       console.log("Metadata CID:", metadataCID);
       console.log("Metadata URI:", metadataUri);

@@ -11,6 +11,33 @@ const CONFIG = {
     MAX_GAS_PRICE: ethers.parseUnits('20', 'gwei') // Adjust for your chain
 };
 
+// Timeouts & retries for resiliency
+const CALL_TIMEOUT_MS = Number(process.env.BOT_TIMEOUT_MS || 15000);
+const CALL_RETRIES = Number(process.env.BOT_RETRIES || 2);
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const withTimeout = async (fn, ms = CALL_TIMEOUT_MS) => {
+  return await Promise.race([
+    fn(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)),
+  ]);
+};
+
+const withRetry = async (fn, retries = CALL_RETRIES, backoffMs = 500) => {
+  let attempt = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt += 1;
+      if (attempt > retries) throw err;
+      await delay(backoffMs * attempt);
+    }
+  }
+};
+
 // Contract ABI (updated with new functions)
 const CONTRACT_ABI = [
     "function startAuction() external",
@@ -76,7 +103,7 @@ class AuctionBot {
     // Get current auction state from contract
     async getAuctionState() {
         try {
-            const state = await this.contract.currentState();
+            const state = await withRetry(() => withTimeout(() => this.contract.currentState()), CALL_RETRIES);
             return Number(state); // Convert BigInt to number
         } catch (error) {
             console.error('❌ Error getting auction state:', error.message);
@@ -87,7 +114,7 @@ class AuctionBot {
     // Get auction end time from contract
     async getAuctionEndTime() {
         try {
-            const endTime = await this.contract.auctionEndTime();
+            const endTime = await withRetry(() => withTimeout(() => this.contract.auctionEndTime()), CALL_RETRIES);
             return Number(endTime);
         } catch (error) {
             console.error('❌ Error getting auction end time:', error.message);
@@ -98,7 +125,7 @@ class AuctionBot {
     // Get current auction ID
     async getCurrentAuctionId() {
         try {
-            const auctionId = await this.contract.currentAuctionId();
+            const auctionId = await withRetry(() => withTimeout(() => this.contract.currentAuctionId()), CALL_RETRIES);
             return Number(auctionId);
         } catch (error) {
             console.error('❌ Error getting current auction ID:', error.message);
@@ -109,7 +136,7 @@ class AuctionBot {
     // Get bid count for specific auction
     async getBidCount(auctionId) {
         try {
-            const count = await this.contract.getBidCount(auctionId);
+            const count = await withRetry(() => withTimeout(() => this.contract.getBidCount(auctionId)), CALL_RETRIES);
             return Number(count);
         } catch (error) {
             console.error('❌ Error getting bid count:', error.message);
@@ -120,7 +147,7 @@ class AuctionBot {
     // Check if auction has been extended for no bids
     async hasBeenExtendedForNoBids(auctionId) {
         try {
-            const extended = await this.contract.hasAuctionBeenExtendedForNoBids(auctionId);
+            const extended = await withRetry(() => withTimeout(() => this.contract.hasAuctionBeenExtendedForNoBids(auctionId)), CALL_RETRIES);
             return extended;
         } catch (error) {
             console.error('❌ Error checking extension status:', error.message);
@@ -136,14 +163,14 @@ class AuctionBot {
             // Debug contract state first
             await this.debugContractState();
             
-            const tx = await this.contract.startAuction({
+            const tx = await withRetry(() => withTimeout(() => this.contract.startAuction({
                 gasLimit: CONFIG.GAS_LIMIT
-            });
+            })), CALL_RETRIES);
             
             console.log(`📝 Transaction sent: ${tx.hash}`);
             console.log(`⏳ Waiting for confirmation...`);
             
-            const receipt = await tx.wait();
+            const receipt = await withRetry(() => withTimeout(() => tx.wait()), CALL_RETRIES, 800);
             console.log(`✅ Auction started successfully!`);
             console.log(`📦 Block: ${receipt.blockNumber}`);
             console.log(`⛽ Gas used: ${receipt.gasUsed.toString()}`);
@@ -173,12 +200,12 @@ class AuctionBot {
         try {
             console.log(`🔄 Extending auction #${auctionId} for no bids (12 hours)...`);
             
-            const tx = await this.contract.extendAuctionForNoBids(auctionId, {
+            const tx = await withRetry(() => withTimeout(() => this.contract.extendAuctionForNoBids(auctionId, {
                 gasLimit: CONFIG.GAS_LIMIT
-            });
+            })), CALL_RETRIES);
             
             console.log(`📝 Transaction sent: ${tx.hash}`);
-            const receipt = await tx.wait();
+            const receipt = await withRetry(() => withTimeout(() => tx.wait()), CALL_RETRIES, 800);
             console.log(`✅ Auction extended successfully! Block: ${receipt.blockNumber}`);
             console.log(`⏰ Auction will now run for additional 12 hours`);
             
@@ -198,12 +225,12 @@ class AuctionBot {
         try {
             console.log('🏁 Ending auction...');
             
-            const tx = await this.contract.endAuction({
+            const tx = await withRetry(() => withTimeout(() => this.contract.endAuction({
                 gasLimit: CONFIG.GAS_LIMIT
-            });
+            })), CALL_RETRIES);
             
             console.log(`📝 Transaction sent: ${tx.hash}`);
-            const receipt = await tx.wait();
+            const receipt = await withRetry(() => withTimeout(() => tx.wait()), CALL_RETRIES, 800);
             console.log(`✅ Auction ended! Block: ${receipt.blockNumber}`);
             
         } catch (error) {
@@ -219,12 +246,12 @@ class AuctionBot {
         try {
             console.log('🔄 Resetting for new auction...');
             
-            const tx = await this.contract.resetForNewAuction({
+            const tx = await withRetry(() => withTimeout(() => this.contract.resetForNewAuction({
                 gasLimit: CONFIG.GAS_LIMIT
-            });
+            })), CALL_RETRIES);
             
             console.log(`📝 Transaction sent: ${tx.hash}`);
-            const receipt = await tx.wait();
+            const receipt = await withRetry(() => withTimeout(() => tx.wait()), CALL_RETRIES, 800);
             console.log(`✅ Reset complete! Block: ${receipt.blockNumber}`);
             
         } catch (error) {
@@ -436,23 +463,22 @@ class AuctionBot {
         console.log('\n🎯 Bot initialized successfully!');
         console.log('🔄 Starting monitoring loop...\n');
         
-        // Run immediately
-        await this.runBot();
-        
-        // Then run on interval
-        setInterval(async () => {
+        // Replace setInterval with a controlled async loop to avoid overlap and hangs
+        // Heartbeat + backoff to keep logs alive even if RPC stalls
+        while (true) {
+            const loopStartedAt = new Date();
+            console.log(`🫀 Heartbeat ${loopStartedAt.toISOString()}`);
             try {
-                await this.runBot();
-                
-                // Check balance every ~20 checks (every ~100 seconds)
-                if (Math.random() < 0.05) {
-                    await this.checkBalance();
-                }
-            } catch (error) {
-                console.error('❌ Unexpected error in main loop:', error.message);
-                console.error('🔄 Continuing monitoring...');
+                await withRetry(() => withTimeout(() => this.runBot(), CALL_TIMEOUT_MS), 0);
+            } catch (err) {
+                console.error('❌ runBot iteration failed:', err.message);
             }
-        }, CONFIG.CHECK_INTERVAL);
+            // Opportunistic periodic balance check
+            if (Math.random() < 0.05) {
+                try { await withTimeout(() => this.checkBalance(), 10000); } catch {}
+            }
+            await delay(CONFIG.CHECK_INTERVAL);
+        }
     }
 }
 
