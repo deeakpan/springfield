@@ -60,7 +60,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   });
   const [userSocialPlatform, setUserSocialPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
   const [userSocialValue, setUserSocialValue] = useState('');
-  const [projectPrimaryPlatform, setProjectPrimaryPlatform] = useState<'telegram' | 'discord' | 'x'>('telegram');
+  const [projectPrimaryPlatform, setProjectPrimaryPlatform] = useState<'telegram' | 'discord' | 'x' | 'website'>('telegram');
   const [projectPrimaryValue, setProjectPrimaryValue] = useState('');
   const [projectAdditionalLinks, setProjectAdditionalLinks] = useState(['', '']);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -952,7 +952,12 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                      if (!projectPrimaryValue.trim()) {
                        errs.projectPrimaryValue = 'Primary social link is required';
                      } else {
-                       if (projectPrimaryPlatform === 'telegram') {
+                       if (projectPrimaryPlatform === 'website') {
+                         // Allow any valid URL for website option
+                         if (!/^https?:\/\/.+\..+/.test(projectPrimaryValue)) {
+                           errs.projectPrimaryValue = 'Must be a valid website URL';
+                         }
+                       } else if (projectPrimaryPlatform === 'telegram') {
                          if (!/^https:\/\/t\.me\/(\+|c\/|[a-zA-Z0-9_]{5,})/.test(projectPrimaryValue)) {
                            errs.projectPrimaryValue = 'Must be a valid Telegram group/channel link';
                          }
@@ -1094,30 +1099,33 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                            {errors.userSocialValue && <div className="text-red-500 text-sm mt-1">{errors.userSocialValue}</div>}
                          </div>
                        ) : (
-                         <>
-                           <div className="flex flex-col w-full text-left">
-                             <label className="mb-1 font-semibold text-black">Primary Social Link</label>
-                             <select
-                               className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
-                               value={projectPrimaryPlatform}
-                               onChange={e => setProjectPrimaryPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
-                             >
-                               <option value="telegram">Telegram</option>
-                               <option value="discord">Discord</option>
-                               <option value="x">X (Twitter)</option>
-                             </select>
-                             <input
-                               className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full mt-2"
-                               placeholder={
-                                 projectPrimaryPlatform === 'telegram'
-                                   ? 'Telegram group/channel link'
-                                   : projectPrimaryPlatform === 'discord'
-                                   ? 'Discord server invite'
-                                   : 'X (Twitter) profile link'
-                               }
-                               value={projectPrimaryValue}
-                               onChange={e => setProjectPrimaryValue(e.target.value)}
-                             />
+                                                    <>
+                             <div className="flex flex-col w-full text-left">
+                               <label className="mb-1 font-semibold text-black">Primary Link</label>
+                               <select
+                                 className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+                                 value={projectPrimaryPlatform}
+                                 onChange={e => setProjectPrimaryPlatform(e.target.value as 'telegram' | 'discord' | 'x' | 'website')}
+                               >
+                                 <option value="telegram">Telegram</option>
+                                 <option value="discord">Discord</option>
+                                 <option value="x">X (Twitter)</option>
+                                 <option value="website">Website</option>
+                               </select>
+                               <input
+                                 className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full mt-2"
+                                 placeholder={
+                                   projectPrimaryPlatform === 'telegram'
+                                     ? 'Telegram group/channel link'
+                                     : projectPrimaryPlatform === 'discord'
+                                     ? 'Discord server invite'
+                                     : projectPrimaryPlatform === 'x'
+                                     ? 'X (Twitter) profile link'
+                                     : 'https://your-website.com or any valid URL'
+                                 }
+                                 value={projectPrimaryValue}
+                                 onChange={e => setProjectPrimaryValue(e.target.value)}
+                               />
                              {errors.projectPrimaryValue && <div className="text-red-500 text-sm mt-1">{errors.projectPrimaryValue}</div>}
                            </div>
 
