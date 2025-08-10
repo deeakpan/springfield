@@ -1235,7 +1235,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                      <input
                        type="number"
                        className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
-                      placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '10000.00'} SPRING`}
+                                             placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '50000.00'} SPRING`}
                        value={form.bidAmount}
                        onChange={e => {
                          const value = e.target.value;
@@ -1246,7 +1246,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                          
                          if (value) {
                            const bidAmount = Number(value);
-                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 10000;
+                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 50000;
                            const balance = Number(userBalance);
                            
                            if (bidAmount < minBid) {
@@ -1256,7 +1256,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                            }
                          }
                        }}
-                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '10000.00'}
+                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '50000.00'}
                        step="0.01"
                      />
                      <div className="text-sm text-gray-600">
