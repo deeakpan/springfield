@@ -1129,25 +1129,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                  {errors.type && <div className="text-red-500 text-sm text-center mb-4">{errors.type}</div>}
 
                  {/* Quick Raise Bid Section - Only show if user has a current bid */}
-                 {(() => {
-                   const [hasCurrentBid, setHasCurrentBid] = useState<boolean | null>(null);
-                   
-                   // Check if user has a current bid when component mounts
-                   useEffect(() => {
-                     const checkUserBid = async () => {
-                       if (window.ethereum && AUCTION_CONTRACT_ADDRESS) {
-                         const userBid = await getUserCurrentBidInfo();
-                         setHasCurrentBid(!!userBid);
-                       }
-                     };
-                     checkUserBid();
-                   }, []);
-                   
-                   // Only render if we know the user has a bid
-                   if (hasCurrentBid === null) return null; // Still checking
-                   if (hasCurrentBid === false) return null; // No bid, don't show section
-                   
-                   return (
+                 {hasCurrentBid && (
                      <div className="mb-4 p-4 bg-gradient-to-r from-purple-100 to-blue-100 border-2 border-purple-300 rounded-lg">
                        <h3 className="text-lg font-bold text-purple-800 mb-3 text-center">🚀 Quick Raise Bid</h3>
                        <p className="text-sm text-purple-700 mb-3 text-center">
@@ -1204,8 +1186,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                            )}
                        </div>
                      </div>
-                   );
-                 })()}
+                   )}
 
                  {userType ? (
                    <>
