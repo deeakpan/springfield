@@ -100,6 +100,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   const [winningBidMetadata, setWinningBidMetadata] = useState<any>(null);
   const [currentQRPreference, setCurrentQRPreference] = useState<boolean>(false);
   const [isWinner, setIsWinner] = useState<boolean>(false);
+  const [hasCurrentBid, setHasCurrentBid] = useState<boolean | null>(null);
 
   // Fetch auction state
   useEffect(() => {
@@ -523,6 +524,88 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
       console.error('Failed to fetch metadata from IPFS:', error);
     }
     return null;
+  };
+
+  // Function to get user's current bid info for quick raise
+  const getUserCurrentBidInfo = async () => {
+    if (!AUCTION_CONTRACT_ADDRESS || !window.ethereum) return null;
+    
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const userAddress = await signer.getAddress();
+      
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+      if (!rpcUrl) return null;
+      
+      const contractProvider = new ethers.JsonRpcProvider(rpcUrl);
+      const contract = new ethers.Contract(AUCTION_CONTRACT_ADDRESS, AUCTION_ABI, contractProvider);
+      
+      // Get user's bid from current auction only
+      const currentBids = await contract.getCurrentBids();
+      let userBid = null;
+      
+      for (const bid of currentBids) {
+        if (bid.bidder.toLowerCase() === userAddress.toLowerCase()) {
+          userBid = bid;
+          break;
+        }
+      }
+      
+      return userBid;
+    } catch (error) {
+      console.error('Error getting user bid info:', error);
+      return null;
+    }
+  };
+
+  // Function to quick raise bid (same metadata, new amount)
+  const quickRaiseBid = async (newAmount: number) => {
+    if (!AUCTION_CONTRACT_ADDRESS || !window.ethereum) return;
+    
+    try {
+      const userBid = await getUserCurrentBidInfo();
+      if (!userBid) {
+        setErrorMsg("No current bid found to raise");
+        setTimeout(() => setErrorMsg(null), 3000);
+        return;
+      }
+      
+              // Check if new amount is 10% higher than current highest
+        const currentHighest = Number(auctionInfo.highestBid);
+        const minBid = currentHighest > 0 ? currentHighest * 1.1 : 50000;
+        
+        if (newAmount < minBid) {
+          setErrorMsg(`Bid must be at least ${minBid.toFixed(2)} SPRING (10% higher than current highest: ${currentHighest} SPRING)`);
+          setTimeout(() => setErrorMsg(null), 3000);
+          return;
+        }
+      
+      // Use the same metadata URL from their current bid
+      const metadataUrl = userBid.metadataUrl;
+      
+      // Call contract with same metadata, new amount
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(AUCTION_CONTRACT_ADDRESS, AUCTION_ABI, signer);
+      
+      const tx = await contract.placeBid(
+        ethers.parseUnits(newAmount.toString(), 18),
+        userBid.name,
+        userBid.description,
+        metadataUrl, // Same metadata URL
+        userBid.qrPreference || false
+      );
+      
+      await tx.wait();
+      setSuccessMsg("Bid raised successfully! 🚀");
+      setStep('success');
+      
+    } catch (error: any) {
+      console.error('Error raising bid:', error);
+      setErrorMsg(error.message || 'Failed to raise bid');
+      setTimeout(() => setErrorMsg(null), 3000);
+    }
   };
 
   // Function to toggle QR preference
@@ -1035,6 +1118,88 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                  </div>
                  {errors.type && <div className="text-red-500 text-sm text-center mb-4">{errors.type}</div>}
 
+                 {/* Quick Raise Bid Section - Only show if user has a current bid */}
+                 {(() => {
+                   const [hasCurrentBid, setHasCurrentBid] = useState<boolean | null>(null);
+                   
+                   // Check if user has a current bid when component mounts
+                   useEffect(() => {
+                     const checkUserBid = async () => {
+                       if (window.ethereum && AUCTION_CONTRACT_ADDRESS) {
+                         const userBid = await getUserCurrentBidInfo();
+                         setHasCurrentBid(!!userBid);
+                       }
+                     };
+                     checkUserBid();
+                   }, []);
+                   
+                   // Only render if we know the user has a bid
+                   if (hasCurrentBid === null) return null; // Still checking
+                   if (hasCurrentBid === false) return null; // No bid, don't show section
+                   
+                   return (
+                     <div className="mb-4 p-4 bg-gradient-to-r from-purple-100 to-blue-100 border-2 border-purple-300 rounded-lg">
+                       <h3 className="text-lg font-bold text-purple-800 mb-3 text-center">🚀 Quick Raise Bid</h3>
+                       <p className="text-sm text-purple-700 mb-3 text-center">
+                         Already have a bid? Raise it quickly with the same details!
+                       </p>
+                       
+                       <div className="space-y-3">
+                         <div className="flex items-center gap-2">
+                           <input
+                             type="number"
+                             id="quickRaiseAmount"
+                             placeholder="Enter new bid amount (SPRING)"
+                             className="flex-1 rounded-md border-2 border-purple-400 px-3 py-2 bg-white text-purple-800 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400"
+                             min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
+                             step="0.1"
+                             onChange={(e) => {
+                               const value = e.target.value;
+                               if (value) {
+                                 const amount = Number(value);
+                                 const currentHighest = Number(auctionInfo.highestBid);
+                                 const minBid = currentHighest > 0 ? currentHighest * 1.1 : 50000;
+                                 
+                                 if (amount < minBid) {
+                                   // Auto-correct to minimum valid amount
+                                   e.target.value = minBid.toFixed(2);
+                                   e.target.style.borderColor = '#ef4444'; // Red border
+                                   setTimeout(() => {
+                                     e.target.style.borderColor = '#c084fc'; // Reset to purple
+                                   }, 2000);
+                                 }
+                               }
+                             }}
+                           />
+                           <button
+                             type="button"
+                             onClick={() => {
+                               const amountInput = document.getElementById('quickRaiseAmount') as HTMLInputElement;
+                               const amount = parseFloat(amountInput.value);
+                               if (amount && amount > 0) {
+                                 quickRaiseBid(amount);
+                               } else {
+                                 setErrorMsg("Please enter a valid amount");
+                                 setTimeout(() => setErrorMsg(null), 3000);
+                               }
+                             }}
+                             className="bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 rounded-md font-bold hover:from-purple-600 hover:to-blue-600 transition-all duration-200 shadow-md hover:shadow-lg"
+                           >
+                             🎯 Raise Bid
+                           </button>
+                         </div>
+                         
+                                                    {Number(auctionInfo.highestBid) > 0 && (
+                             <div className="text-xs text-purple-600 text-center">
+                               Current highest: {auctionInfo.highestBid} SPRING<br />
+                               Next bid must be: {(Number(auctionInfo.highestBid) * 1.1).toFixed(2)} SPRING (10% higher)
+                             </div>
+                           )}
+                       </div>
+                     </div>
+                   );
+                 })()}
+
                  {userType ? (
                    <>
                      <div className="flex flex-col w-full text-left space-y-4">
@@ -1235,28 +1400,49 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                      <input
                        type="number"
                        className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
-                                             placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '50000.00'} SPRING`}
+                                                                                           placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'} SPRING`}
                        value={form.bidAmount}
                        onChange={e => {
                          const value = e.target.value;
-                         setForm(f => ({ ...f, bidAmount: value }));
                          
-                         // Clear any existing bid amount error
-                         setErrors(errs => ({ ...errs, bidAmount: '' }));
-                         
+                         // Real-time validation and auto-correction
                          if (value) {
                            const bidAmount = Number(value);
-                          const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) + 1000 : 50000;
+                           const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) * 1.1 : 50000; // 10% higher or 50k minimum
                            const balance = Number(userBalance);
                            
                            if (bidAmount < minBid) {
-                            setErrors(errs => ({ ...errs, bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRING (current highest + 1000)` }));
+                             // Auto-correct to minimum valid amount
+                             const correctedValue = minBid.toFixed(2);
+                             e.target.value = correctedValue;
+                             setForm(f => ({ ...f, bidAmount: correctedValue }));
+                             
+                             // Show error message
+                             setErrors(errs => ({ 
+                               ...errs, 
+                               bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRING (10% higher than current highest: ${Number(auctionInfo.highestBid)} SPRING)` 
+                             }));
+                             
+                             // Red border to indicate correction
+                             e.target.style.borderColor = '#ef4444';
+                             setTimeout(() => {
+                               e.target.style.borderColor = '#000000'; // Reset to black
+                             }, 2000);
                            } else if (bidAmount > balance) {
                              setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRING` }));
+                             setForm(f => ({ ...f, bidAmount: value }));
+                           } else {
+                             // Valid amount - clear errors and set value
+                             setErrors(errs => ({ ...errs, bidAmount: '' }));
+                             setForm(f => ({ ...f, bidAmount: value }));
                            }
+                         } else {
+                           // Empty value - just set it
+                           setForm(f => ({ ...f, bidAmount: value }));
+                           setErrors(errs => ({ ...errs, bidAmount: '' }));
                          }
                        }}
-                      min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) + 1000).toFixed(2) : '50000.00'}
+                                             min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
                        step="0.01"
                      />
                      <div className="text-sm text-gray-600">
