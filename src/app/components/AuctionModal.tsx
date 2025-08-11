@@ -16,6 +16,7 @@ const AUCTION_ABI = [
   "function bidderRefunds(address bidder, uint256 auctionId) external view returns (uint256)",
   "function biddingToken() external view returns (address)",
   "function getCurrentAuctionInfo() external view returns (tuple(uint256 auctionId, uint256 startTime, uint256 endTime, uint256 totalBids, uint256 totalAmount, uint256 uniqueBidders, address highestBidder, uint256 highestBidAmount, bool isActive, bool hasWinner, bool hasBeenExtendedForNoBids, tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId) winningBid))",
+  "function getCurrentBids() external view returns (tuple(address bidder, string name, string description, uint256 amount, address tokenAddress, string metadataUrl, uint256 timestamp, uint256 auctionId)[])",
   "function setQRPreference(uint256 _auctionId, bool _isImage) external",
   "function getQRPreference(uint256 _auctionId, address _winner) external view returns (bool)"
 ];
@@ -366,6 +367,20 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   useEffect(() => {
     fetchAuctionStateRef.current = fetchAuctionState;
   }, [fetchAuctionState]);
+
+  // Check if user has a current bid when auction info changes
+  useEffect(() => {
+    const checkUserBid = async () => {
+      if (window.ethereum && AUCTION_CONTRACT_ADDRESS && auctionInfo.auctionId > 0) {
+        const userBid = await getUserCurrentBidInfo();
+        setHasCurrentBid(!!userBid);
+      }
+    };
+    
+    if (isOpen) {
+      checkUserBid();
+    }
+  }, [isOpen, auctionInfo.auctionId]);
 
   // Handle bid submission
   const handleBid = async () => {
@@ -1145,6 +1160,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                              className="flex-1 rounded-md border-2 border-purple-400 px-3 py-2 bg-white text-purple-800 font-semibold focus:outline-none focus:ring-2 focus:ring-purple-400"
                              min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
                              step="0.1"
+                             defaultValue={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
                              onChange={(e) => {
                                const value = e.target.value;
                                // Just update the input value - validation will happen on submit
@@ -1388,8 +1404,9 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                      <input
                        type="number"
                        className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-bold focus:outline-none focus:ring-2 focus:ring-blue-400 w-full"
-                                                                                           placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'} SPRING`}
+                       placeholder={`Min bid: ${Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'} SPRING`}
                        value={form.bidAmount}
+                       defaultValue={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
                        onChange={e => {
                          const value = e.target.value;
                          setForm(f => ({ ...f, bidAmount: value }));
