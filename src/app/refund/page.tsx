@@ -8,7 +8,6 @@ import { ethers } from 'ethers';
 
 // Contract addresses and ABI
 const AUCTION_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_AUCTION_CONTRACT;
-const SPRFD_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_SPRFD_ADDRESS;
 
 const AUCTION_ABI = [
   "function bidderRefunds(address bidder, uint256 auctionId) external view returns (uint256)",
