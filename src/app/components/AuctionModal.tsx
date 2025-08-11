@@ -1155,20 +1155,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                              step="0.1"
                              onChange={(e) => {
                                const value = e.target.value;
-                               if (value) {
-                                 const amount = Number(value);
-                                 const currentHighest = Number(auctionInfo.highestBid);
-                                 const minBid = currentHighest > 0 ? currentHighest * 1.1 : 50000;
-                                 
-                                 if (amount < minBid) {
-                                   // Auto-correct to minimum valid amount
-                                   e.target.value = minBid.toFixed(2);
-                                   e.target.style.borderColor = '#ef4444'; // Red border
-                                   setTimeout(() => {
-                                     e.target.style.borderColor = '#c084fc'; // Reset to purple
-                                   }, 2000);
-                                 }
-                               }
+                               // Just update the input value - validation will happen on submit
                              }}
                            />
                            <button
@@ -1177,6 +1164,16 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                                const amountInput = document.getElementById('quickRaiseAmount') as HTMLInputElement;
                                const amount = parseFloat(amountInput.value);
                                if (amount && amount > 0) {
+                                 // Validate 10% higher requirement
+                                 const currentHighest = Number(auctionInfo.highestBid);
+                                 const minBid = currentHighest > 0 ? currentHighest * 1.1 : 50000;
+                                 
+                                 if (amount < minBid) {
+                                   setErrorMsg(`Bid must be at least ${minBid.toFixed(2)} SPRING (10% higher than current highest: ${currentHighest} SPRING)`);
+                                   setTimeout(() => setErrorMsg(null), 3000);
+                                   return;
+                                 }
+                                 
                                  quickRaiseBid(amount);
                                } else {
                                  setErrorMsg("Please enter a valid amount");
@@ -1404,42 +1401,24 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
                        value={form.bidAmount}
                        onChange={e => {
                          const value = e.target.value;
+                         setForm(f => ({ ...f, bidAmount: value }));
                          
-                         // Real-time validation and auto-correction
+                         // Clear any existing bid amount error
+                         setErrors(errs => ({ ...errs, bidAmount: '' }));
+                         
                          if (value) {
                            const bidAmount = Number(value);
                            const minBid = Number(auctionInfo.highestBid) > 0 ? Number(auctionInfo.highestBid) * 1.1 : 50000; // 10% higher or 50k minimum
                            const balance = Number(userBalance);
                            
                            if (bidAmount < minBid) {
-                             // Auto-correct to minimum valid amount
-                             const correctedValue = minBid.toFixed(2);
-                             e.target.value = correctedValue;
-                             setForm(f => ({ ...f, bidAmount: correctedValue }));
-                             
-                             // Show error message
                              setErrors(errs => ({ 
                                ...errs, 
                                bidAmount: `Bid must be at least ${minBid.toFixed(2)} SPRING (10% higher than current highest: ${Number(auctionInfo.highestBid)} SPRING)` 
                              }));
-                             
-                             // Red border to indicate correction
-                             e.target.style.borderColor = '#ef4444';
-                             setTimeout(() => {
-                               e.target.style.borderColor = '#000000'; // Reset to black
-                             }, 2000);
                            } else if (bidAmount > balance) {
                              setErrors(errs => ({ ...errs, bidAmount: `Insufficient balance. You have ${balance.toFixed(2)} SPRING` }));
-                             setForm(f => ({ ...f, bidAmount: value }));
-                           } else {
-                             // Valid amount - clear errors and set value
-                             setErrors(errs => ({ ...errs, bidAmount: '' }));
-                             setForm(f => ({ ...f, bidAmount: value }));
                            }
-                         } else {
-                           // Empty value - just set it
-                           setForm(f => ({ ...f, bidAmount: value }));
-                           setErrors(errs => ({ ...errs, bidAmount: '' }));
                          }
                        }}
                                              min={Number(auctionInfo.highestBid) > 0 ? (Number(auctionInfo.highestBid) * 1.1).toFixed(2) : '50000.00'}
