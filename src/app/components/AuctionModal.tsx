@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ethers } from 'ethers';
 import { X, Upload, ArrowRight, ArrowLeft, Loader2, ShoppingCart, CheckCircle2, User, Users } from 'lucide-react';
 import lighthouse from '@lighthouse-web3/sdk';
@@ -101,12 +101,17 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   const [currentQRPreference, setCurrentQRPreference] = useState<boolean>(false);
   const [isWinner, setIsWinner] = useState<boolean>(false);
   const [hasCurrentBid, setHasCurrentBid] = useState<boolean | null>(null);
+  const fetchAuctionStateRef = useRef<(() => Promise<void>) | null>(null);
 
   // Fetch auction state
   useEffect(() => {
-    if (isOpen && AUCTION_CONTRACT_ADDRESS) {
-      fetchAuctionState();
-      const interval = setInterval(fetchAuctionState, 10000); // Update every 10 seconds
+    if (isOpen && AUCTION_CONTRACT_ADDRESS && fetchAuctionStateRef.current) {
+      fetchAuctionStateRef.current();
+      const interval = setInterval(() => {
+        if (fetchAuctionStateRef.current) {
+          fetchAuctionStateRef.current();
+        }
+      }, 10000); // Update every 10 seconds
       return () => clearInterval(interval);
     }
   }, [isOpen]);
@@ -170,7 +175,7 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
   }, [isOpen]);
 
   // FIXED: Enhanced fetchAuctionState function that handles all states properly
-  const fetchAuctionState = async () => {
+  const fetchAuctionState = useCallback(async () => {
     if (!AUCTION_CONTRACT_ADDRESS) {
       console.error("❌ NEXT_PUBLIC_AUCTION_CONTRACT environment variable not set!");
       return;
@@ -355,7 +360,12 @@ export default function AuctionModal({ isOpen, onClose, tileData }: AuctionModal
         reason: error.reason
       });
     }
-  };
+  }, []);
+
+  // Assign function to ref for useEffect access
+  useEffect(() => {
+    fetchAuctionStateRef.current = fetchAuctionState;
+  }, [fetchAuctionState]);
 
   // Handle bid submission
   const handleBid = async () => {
