@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { Edit3 } from 'lucide-react';
+import EditTileModal from './EditTileModal';
+import { ethers } from 'ethers';
 
 interface TileDetailsModalProps {
   open: boolean;
@@ -74,88 +77,136 @@ function renderSocialLinks(socials: any) {
 }
 
 const TileDetailsModal: React.FC<TileDetailsModalProps> = ({ open, onClose, details }) => {
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+
+  // Check if connected wallet owns the tile
+  useEffect(() => {
+    async function checkOwnership() {
+      if (open && window.ethereum && details?.address) {
+        try {
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const addr = await signer.getAddress();
+          setConnectedAddress(addr);
+          setIsOwner(addr.toLowerCase() === details.address.toLowerCase());
+        } catch (e) {
+          console.error('Failed to check ownership:', e);
+          setConnectedAddress(null);
+          setIsOwner(false);
+        }
+      }
+    }
+    checkOwnership();
+  }, [open, details?.address]);
+
   if (!open || !details) return null;
   
   return (
-    <div
-      className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-      style={{ pointerEvents: 'auto' }}
-      onClick={onClose}
-    >
+    <>
       <div
-        className={`bg-white rounded-xl p-4 max-w-md w-80 relative flex flex-col items-center shadow-xl ${springfieldBorder}`}
-        onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '90vw', wordBreak: 'break-word' }}
+        className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+        style={{ pointerEvents: 'auto' }}
+        onClick={onClose}
       >
-        <button className="absolute top-2 right-2 text-black text-lg font-bold hover:text-red-500 transition-colors" onClick={onClose} aria-label="Close">&times;</button>
-        
-        {/* Show image if available */}
-        {details.imageCID && (
-          <img 
-            src={`https://gateway.lighthouse.storage/ipfs/${details.imageCID}`} 
-            alt="Tile" 
-            className="w-32 h-32 object-contain rounded mb-3 border border-black bg-white" 
-            onError={(e) => {
-              console.error('Failed to load image:', details.imageCID);
-              e.currentTarget.style.display = 'none';
-            }}
-          />
-        )}
-        
-        <div className="text-lg font-bold mb-1 text-green-700 text-center break-words w-full">
-          {details.name || `Tile ${details.tileId}`}
-        </div>
-        
-        <div className="mb-1 text-center w-full flex flex-wrap justify-center">
-          <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
-        </div>
-        
-        {/* Show social links */}
-        {details.socials && Object.keys(details.socials).length > 0 && (
-          <div className="mb-1 w-full text-center">
-            <div className="font-semibold text-gray-700 mb-1">Socials:</div>
-            {renderSocialLinks(details.socials)}
-          </div>
-        )}
-        
-        {/* Show website if available */}
-        {details.website && (
-          <div className="mb-1 text-center break-words w-full">
-            <span className="font-semibold text-gray-700">Website:</span> 
-            <a 
-              href={details.website} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="text-blue-700 underline break-all ml-1"
+        <div
+          className={`bg-white rounded-xl p-4 max-w-md w-80 relative flex flex-col items-center shadow-xl ${springfieldBorder}`}
+          onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '90vw', wordBreak: 'break-word' }}
+        >
+          <button className="absolute top-2 right-2 text-black text-lg font-bold hover:text-red-500 transition-colors" onClick={onClose} aria-label="Close">&times;</button>
+          
+          {/* Edit button - only show if owner */}
+          {isOwner && (
+            <button 
+              className="absolute top-2 left-2 text-blue-600 hover:text-blue-800 transition-colors p-1"
+              onClick={() => setShowEditModal(true)}
+              aria-label="Edit tile"
+              title="Edit tile (owner only)"
             >
-              {details.website}
-            </a>
+              <Edit3 className="w-5 h-5" />
+            </button>
+          )}
+          
+          {/* Show image if available */}
+          {details.imageCID && (
+            <img 
+              src={`https://gateway.lighthouse.storage/ipfs/${details.imageCID}`} 
+              alt="Tile" 
+              className="w-32 h-32 object-contain rounded mb-3 border border-black bg-white" 
+              onError={(e) => {
+                console.error('Failed to load image:', details.imageCID);
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          )}
+          
+          <div className="text-lg font-bold mb-1 text-green-700 text-center break-words w-full">
+            {details.name || `Tile ${details.tileId}`}
           </div>
-        )}
-        
-        {/* Show owner address */}
-        {details.address && (
-          <div className="mb-1 text-center break-words w-full">
-            <span className="font-semibold text-gray-700">Owner Address:</span> 
-            <span className="text-black break-all ml-1">{details.address}</span>
+          
+          <div className="mb-1 text-center w-full flex flex-wrap justify-center">
+            <span className="font-semibold text-gray-700">Status:</span> <span className="text-green-600 font-semibold">Claimed</span>
           </div>
-        )}
-        
-        {/* Show tile ID */}
-        {details.tileId && (
-          <div className="text-xs text-gray-500 text-center mt-2 break-all w-full">
-            Tile ID: {details.tileId}
-          </div>
-        )}
-        
-        {/* Show image CID for debugging */}
-        {details.imageCID && (
-          <div className="text-xs text-gray-500 text-center mt-1 break-all w-full">
-            Image CID: {details.imageCID}
-          </div>
-        )}
+          
+          {/* Show social links */}
+          {details.socials && Object.keys(details.socials).length > 0 && (
+            <div className="mb-1 w-full text-center">
+              <div className="font-semibold text-gray-700 mb-1">Socials:</div>
+              {renderSocialLinks(details.socials)}
+            </div>
+          )}
+          
+          {/* Show website if available */}
+          {details.website && (
+            <div className="mb-1 text-center break-words w-full">
+              <span className="font-semibold text-gray-700">Website:</span> 
+              <a 
+                href={details.website} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="text-blue-700 underline break-all ml-1"
+              >
+                {details.website}
+              </a>
+            </div>
+          )}
+          
+          {/* Show owner address */}
+          {details.address && (
+            <div className="mb-1 text-center break-words w-full">
+              <span className="font-semibold text-gray-700">Owner Address:</span> 
+              <span className={`break-all ml-1 ${isOwner ? 'text-green-600 font-bold' : 'text-black'}`}>
+                {details.address}
+                {isOwner && ' (You)'}
+              </span>
+            </div>
+          )}
+          
+          {/* Show tile ID */}
+          {details.tileId && (
+            <div className="text-xs text-gray-500 text-center mt-2 break-all w-full">
+              Tile ID: {details.tileId}
+            </div>
+          )}
+          
+          {/* Show image CID for debugging */}
+          {details.imageCID && (
+            <div className="text-xs text-gray-500 text-center mt-1 break-all w-full">
+              Image CID: {details.imageCID}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Edit Modal */}
+      <EditTileModal 
+        open={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        tile={details}
+      />
+    </>
   );
 };
 
