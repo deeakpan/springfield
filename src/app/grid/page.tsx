@@ -914,11 +914,7 @@ export default function GridPage() {
                           winnerImageCID={winnerImageCID}
                           winnerPrimaryLink={winnerPrimaryLink}
                         />
-                      ) : details && details.owner ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Star className="w-2 h-2 text-black" />
-                      </div>
-                    ) : null}
+                      ) : null}
                   </motion.div>
                   );
                 })}
