@@ -25,7 +25,7 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
   const [userType, setUserType] = useState<UserType>(null);
   const [form, setForm] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pricePerTile, setPricePerTile] = useState<string>('17400');
+  const [pricePerTile, setPricePerTile] = useState<string>('18600');
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
   useEffect(() => {
     if (step === 'price' && open) {
       setLoadingPrice(true);
-      setPricePerTile('15600');
+              setPricePerTile('18600');
       setLoadingPrice(false);
     }
   }, [step, open]);
