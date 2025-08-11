@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from "framer-motion";
-import { ArrowLeft, Wallet, RefreshCw, CheckCircle, XCircle, Coins, Clock, AlertCircle, Menu, X, Home, Grid3X3, ShoppingCart } from "lucide-react";
+import { ArrowLeft, Wallet, RefreshCw, CheckCircle, XCircle, Coins, Clock, AlertCircle } from "lucide-react";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { ethers } from 'ethers';
 
@@ -32,7 +32,6 @@ export default function RefundPage() {
   const [claiming, setClaiming] = useState<number | null>(null);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Check if wallet is connected and get user address
   useEffect(() => {
@@ -188,22 +187,11 @@ export default function RefundPage() {
               <a href="/refund" className="text-green-400 font-medium border-b-2 border-green-400">Refunds</a>
             </motion.div>
 
-            <div className="flex items-center space-x-4">
-              {/* Mobile menu button */}
-              <motion.button
-                className="md:hidden p-2 rounded-md text-white hover:text-green-400 transition-colors"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-              >
-                {mobileMenuOpen ? (
-                  <X className="w-6 h-6" />
-                ) : (
-                  <Menu className="w-6 h-6" />
-                )}
-              </motion.button>
-
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
               <ConnectButton.Custom>
                 {({ account, chain, openConnectModal, openAccountModal, authenticationStatus, mounted }) => {
                   const ready = mounted && authenticationStatus !== 'loading';
@@ -236,54 +224,8 @@ export default function RefundPage() {
                   );
                 }}
               </ConnectButton.Custom>
-            </div>
+            </motion.div>
           </div>
-
-          {/* Mobile Navigation Menu */}
-          <motion.div
-            className={`md:hidden ${mobileMenuOpen ? 'block' : 'hidden'}`}
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ 
-              opacity: mobileMenuOpen ? 1 : 0, 
-              height: mobileMenuOpen ? 'auto' : 0 
-            }}
-            transition={{ duration: 0.3 }}
-          >
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-blue-600 border-t-2 border-black">
-              <a 
-                href="/" 
-                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Home className="w-4 h-4" />
-                Home
-              </a>
-              <a 
-                href="/grid" 
-                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Grid3X3 className="w-4 h-4" />
-                Grid
-              </a>
-              <a 
-                href="/marketplace" 
-                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <ShoppingCart className="w-4 h-4" />
-                Marketplace
-              </a>
-              <a 
-                href="/refund" 
-                className="block px-3 py-2 text-green-400 font-medium flex items-center gap-2"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                <Coins className="w-4 h-4" />
-                Refunds
-              </a>
-            </div>
-          </motion.div>
         </div>
       </nav>
 
@@ -410,7 +352,7 @@ export default function RefundPage() {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div>
                               <p className="text-gray-300">Refund Amount:</p>
-                              <p className="font-bold text-yellow-300 text-lg">{refund.refundAmount} SPRFD</p>
+                              <p className="font-bold text-yellow-300 text-lg">{refund.refundAmount} SPRING</p>
                             </div>
                             <div>
                               <p className="text-gray-300">Total Bids:</p>
