@@ -1,6 +1,6 @@
 # Marketplace Contract Integration
 
-This document explains the marketplace contract integration that has been added to the Springfield project.
+This document explains the marketplace contract integration that has been added to the Springfield project
 
 ## Overview
 
