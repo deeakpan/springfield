@@ -397,7 +397,10 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       );
       await tx.wait();
 
-      // 5. Success: clear form, close modal, show message
+      // 5. Purchase completed successfully
+      console.log('✅ Tile purchase completed successfully');
+
+      // 6. Success: clear form, close modal, show message
       setSuccessMsg("Tile purchased successfully!");
       setStep('success');
       setTimeout(() => {

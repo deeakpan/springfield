@@ -1,85 +1,101 @@
 import { NextRequest, NextResponse } from 'next/server';
-import lighthouse from '@lighthouse-web3/sdk';
+import { ethers } from 'ethers';
 
-export async function GET(req: NextRequest) {
+// Fast tile details API - gets data directly from blockchain + IPFS
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const tileId = searchParams.get('tileId');
     
     if (!tileId) {
-      return NextResponse.json({ error: 'Tile ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Tile ID required' }, { status: 400 });
     }
 
-    const apiKey = process.env.LIGHTHOUSE_API_KEY;
+    // Initialize blockchain connection
+    const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL || 'https://rpc.ankr.com/polygon';
+    const MARKETPLACE_ADDRESS = process.env.NEXT_PUBLIC_TILE_CONTRACT;
     
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Lighthouse API key not configured' }, { status: 500 });
+    if (!MARKETPLACE_ADDRESS) {
+      return NextResponse.json({ error: 'Contract address not configured' }, { status: 500 });
     }
 
-    // Fetch all uploads from Lighthouse
-    let lastKey = null;
-    let allFiles: any[] = [];
+    const provider = new ethers.JsonRpcProvider(RPC_URL);
     
-    while (true) {
-      const resp = await lighthouse.getUploads(apiKey, lastKey);
-      const files = resp?.data?.fileList || [];
-      allFiles = allFiles.concat(files);
-      
-      if (files.length === 0 || files.length < 2000) break;
-      lastKey = files[files.length - 1].id;
-    }
+    // ABI for getting tile details
+    const TILE_MARKETPLACE_ABI = [
+      "function getTileDetails(uint256 tileId) external view returns (tuple(uint256 tileId, address owner, string metadataUri, bool isNativePayment, uint256 createdAt, address originalBuyer, bool isForSale, bool isForRent, bool isCurrentlyRented, uint256 salePrice, uint256 rentPricePerDay, address currentRenter, uint256 rentalEnd))"
+    ];
 
-    // Filter for JSON files and metadata files
-    const jsonFiles = allFiles.filter((f: any) => 
-      f.fileName.endsWith('.json') || f.mimeType === 'application/octet-stream'
-    );
+    const marketplace = new ethers.Contract(MARKETPLACE_ADDRESS, TILE_MARKETPLACE_ABI, provider);
 
-    // Process each file to extract tile details
-    const detailsMap: any = {};
-    
-    await Promise.all(jsonFiles.map(async (file: any) => {
-      try {
-        const url = `https://gateway.lighthouse.storage/ipfs/${file.cid}`;
-        const res = await fetch(url);
-        const text = await res.text();
-        
-        let data;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {
-          return; // Skip this file if it's not valid JSON
-        }
-        
-        if (data.tile) {
-          // Convert old coordinate format to new numeric ID if needed
-          let tileIdFromData = data.tile;
-          if (typeof tileIdFromData === 'string' && tileIdFromData.includes('-')) {
-            const parts = tileIdFromData.split('-');
-            if (parts.length === 2) {
-              const x = parseInt(parts[0]);
-              const y = parseInt(parts[1]);
-              if (!isNaN(x) && !isNaN(y)) {
-                tileIdFromData = (x + (y - 1) * 40).toString(); // Convert to numeric ID
-              }
-            }
-          }
-          
-          detailsMap[tileIdFromData] = { ...data, cid: file.cid, originalTileId: data.tile };
-        }
-      } catch (e) {
-        console.error('Error processing file:', file, e);
+    // Get tile details from blockchain
+    let blockchainDetails;
+    try {
+      blockchainDetails = await marketplace.getTileDetails(parseInt(tileId));
+    } catch (error: any) {
+      // Check if the error is "Tile does not exist"
+      if (error.reason === 'Tile does not exist') {
+        // Return a response indicating the tile doesn't exist
+        return NextResponse.json({
+          tileId: parseInt(tileId),
+          exists: false,
+          owner: null,
+          metadataUri: null,
+          imageUrl: null,
+          isForSale: false,
+          isForRent: false,
+          salePrice: null,
+          rentPricePerDay: null,
+          createdAt: null
+        });
       }
-    }));
-
-    // Return the specific tile's metadata if found
-    const tileMetadata = detailsMap[tileId];
-    if (tileMetadata) {
-      return NextResponse.json(tileMetadata);
-    } else {
-      return NextResponse.json({ error: 'Tile metadata not found' }, { status: 404 });
+      // Re-throw other errors
+      throw error;
     }
+    
+    // Extract image URL from metadata if available
+    let imageUrl = null;
+    if (blockchainDetails.metadataUri && blockchainDetails.metadataUri.startsWith('ipfs://')) {
+      try {
+        const metadataCid = blockchainDetails.metadataUri.replace('ipfs://', '');
+        const metadataUrl = `https://gateway.lighthouse.storage/ipfs/${metadataCid}`;
+        
+        // Fetch metadata with timeout
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        
+        const response = await fetch(metadataUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        
+        if (response.ok) {
+          const metadata = await response.json();
+          const imageCID = metadata.imageCID || metadata.image;
+          if (imageCID) {
+            imageUrl = `https://gateway.lighthouse.storage/ipfs/${imageCID}`;
+          }
+        }
+      } catch (error) {
+        // Silently fail - image URL is optional
+        console.warn(`Failed to fetch metadata for tile ${tileId}:`, error);
+      }
+    }
+
+    // Return fast response with blockchain data + image URL
+    return NextResponse.json({
+      tileId: parseInt(tileId),
+      exists: true,
+      owner: blockchainDetails.owner,
+      metadataUri: blockchainDetails.metadataUri,
+      imageUrl: imageUrl,
+      isForSale: blockchainDetails.isForSale,
+      isForRent: blockchainDetails.isForRent,
+      salePrice: blockchainDetails.salePrice?.toString(),
+      rentPricePerDay: blockchainDetails.rentPricePerDay?.toString(),
+      createdAt: blockchainDetails.createdAt?.toString()
+    });
+
   } catch (error) {
-    console.error('Error fetching tile details:', error);
+    console.error('Error in tile-details API:', error);
     return NextResponse.json({ error: 'Failed to fetch tile details' }, { status: 500 });
   }
 } 

@@ -143,6 +143,13 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         bool isImage
     );
 
+    event WinningMetadataUpdated(
+        uint256 indexed auctionId,
+        address indexed winner,
+        string oldMetadataUrl,
+        string newMetadataUrl
+    );
+
     modifier onlyBot() {
         require(msg.sender == botAddress, "Only bot can call this");
         _;
@@ -157,7 +164,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         bidRecipient = _bidRecipient;
         biddingToken = IERC20(_biddingToken);
         currentState = AuctionState.INACTIVE;
-        currentAuctionId = 0;
+        currentAuctionId = 1; // Start at 1, so first auction will be ID 2
         totalAuctionsHeld = 0;
     }
 
@@ -165,7 +172,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     function startAuction() external onlyBot {
         require(currentState == AuctionState.INACTIVE, "Auction not inactive");
         
-        // Increment auction ID for new auction
+        // Increment auction ID for new auction (starts at 2)
         currentAuctionId++;
         totalAuctionsHeld++;
         
@@ -337,8 +344,8 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
                 "Failed to forward tokens"
             );
             
-            // Remove winner's refund so they can't claim
-            bidderRefunds[highestBid.bidder][currentAuctionId] = 0;
+            // FIXED: Only subtract winning bid amount, not all refunds
+            bidderRefunds[highestBid.bidder][currentAuctionId] -= highestBid.amount;
             
             emit FundsForwarded(currentAuctionId, bidRecipient, highestBid.amount, address(biddingToken));
             emit AuctionEnded(
@@ -366,6 +373,20 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         for (uint i = 0; i < currentAuctionBidders.length; i++) {
             uniqueBidderTracker[currentAuctionBidders[i]] = false;
         }
+    }
+
+    // Winner can update their metadata during display period
+    function updateWinningMetadata(uint256 _auctionId, string memory _newMetadataUrl) external {
+        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(currentState == AuctionState.DISPLAY_PERIOD || !auctions[_auctionId].isActive, "Auction not in display period");
+        require(auctions[_auctionId].hasWinner, "Auction has no winner");
+        require(auctions[_auctionId].winningBid.bidder == msg.sender, "Only winner can update metadata");
+        require(bytes(_newMetadataUrl).length > 0, "Metadata URL cannot be empty");
+        
+        string memory oldMetadataUrl = auctions[_auctionId].winningBid.metadataUrl;
+        auctions[_auctionId].winningBid.metadataUrl = _newMetadataUrl;
+        
+        emit WinningMetadataUpdated(_auctionId, msg.sender, oldMetadataUrl, _newMetadataUrl);
     }
 
     // Bot calls this next Monday to reset for new auction
@@ -425,7 +446,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
 
     // View functions for frontend
     function getCurrentAuctionInfo() external view returns (AuctionInfo memory) {
-        if (currentAuctionId == 0) {
+        if (currentAuctionId == 1) { // No auctions started yet
             return AuctionInfo({
                 auctionId: 0,
                 startTime: 0,
@@ -478,15 +499,15 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     }
     
     function getHighestBidder() external view returns (address, uint256) {
-        if (currentAuctionId == 0) return (address(0), 0);
+        if (currentAuctionId == 1) return (address(0), 0); // No auctions yet
         return (auctions[currentAuctionId].highestBidder, auctions[currentAuctionId].highestBidAmount);
     }
     
     function getUserRefundableAuctions(address _user) external view returns (uint256[] memory, uint256[] memory) {
         uint256 count = 0;
         
-        // Count refundable auctions
-        for (uint256 i = 1; i <= currentAuctionId; i++) {
+        // Count refundable auctions (start from 2, first real auction ID)
+        for (uint256 i = 2; i <= currentAuctionId; i++) {
             if (!auctions[i].isActive && 
                 !hasRefunded[_user][i] && 
                 bidderRefunds[_user][i] > 0) {
@@ -498,7 +519,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
         uint256[] memory amounts = new uint256[](count);
         uint256 index = 0;
         
-        for (uint256 i = 1; i <= currentAuctionId; i++) {
+        for (uint256 i = 2; i <= currentAuctionId; i++) {
             if (!auctions[i].isActive && 
                 !hasRefunded[_user][i] && 
                 bidderRefunds[_user][i] > 0) {
@@ -513,7 +534,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     
     function getTotalRefundableAmount(address _user) external view returns (uint256) {
         uint256 total = 0;
-        for (uint256 i = 1; i <= currentAuctionId; i++) {
+        for (uint256 i = 2; i <= currentAuctionId; i++) { // Start from 2
             if (!auctions[i].isActive && 
                 !hasRefunded[_user][i] && 
                 bidderRefunds[_user][i] > 0) {
@@ -525,13 +546,13 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
 
     // Check if auction has been extended for no bids
     function hasAuctionBeenExtendedForNoBids(uint256 _auctionId) external view returns (bool) {
-        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(_auctionId > 1 && _auctionId <= currentAuctionId, "Invalid auction ID"); // Must be >= 2
         return auctions[_auctionId].hasBeenExtendedForNoBids;
     }
 
     // QR Preference functions
     function setQRPreference(uint256 _auctionId, bool _isImage) external {
-        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(_auctionId > 1 && _auctionId <= currentAuctionId, "Invalid auction ID"); // Must be >= 2
         require(auctions[_auctionId].hasWinner, "Auction has no winner");
         require(auctions[_auctionId].winningBid.bidder == msg.sender, "Only winner can set QR preference");
         
@@ -540,7 +561,7 @@ contract WeeklyAuction is ReentrancyGuard, Ownable {
     }
     
     function getQRPreference(uint256 _auctionId, address _winner) external view returns (bool) {
-        require(_auctionId > 0 && _auctionId <= currentAuctionId, "Invalid auction ID");
+        require(_auctionId > 1 && _auctionId <= currentAuctionId, "Invalid auction ID"); // Must be >= 2
         require(auctions[_auctionId].hasWinner, "Auction has no winner");
         require(auctions[_auctionId].winningBid.bidder == _winner, "Address is not the winner");
         

@@ -3,7 +3,7 @@ export const CONTRACT_ADDRESSES = {
   // Load from .env file
   MARKETPLACE: process.env.NEXT_PUBLIC_TILE_CONTRACT || "0x...", // TileMarketplace contract address
   TILE_CORE: process.env.NEXT_PUBLIC_TILE_CORE || "0x...", // TileCore contract address
-  SPRFD_TOKEN: "0xfA1934c9FA8aDdC714841b509eFD54b9e6a749C1", // From deployment script
+  SPRING_TOKEN: process.env.NEXT_PUBLIC_SPRING_ADDRESS || "0x...", // Load from environment
   AUCTION: process.env.NEXT_PUBLIC_AUCTION_CONTRACT || "0xE9C88bE11C1605e1Db4A198E64c5B118E9a0bD3f", // Auction contract address
 } as const;
 
@@ -26,6 +26,7 @@ export const TILE_MARKETPLACE_ABI = [
       { "indexed": true, "internalType": "uint256", "name": "tileId", "type": "uint256" },
       { "indexed": true, "internalType": "address", "name": "owner", "type": "address" },
       { "indexed": false, "internalType": "uint256", "name": "pricePerDay", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "duration", "type": "uint256" },
       { "indexed": false, "internalType": "bool", "name": "isNativePayment", "type": "bool" }
     ],
     "name": "TileListedForRent",
@@ -126,6 +127,7 @@ export const TILE_MARKETPLACE_ABI = [
     "inputs": [
       { "internalType": "uint256", "name": "tileId", "type": "uint256" },
       { "internalType": "uint256", "name": "pricePerDay", "type": "uint256" },
+      { "internalType": "uint256", "name": "duration", "type": "uint256" },
       { "internalType": "bool", "name": "isNativePayment", "type": "bool" }
     ],
     "name": "listTileForRent",
@@ -146,8 +148,7 @@ export const TILE_MARKETPLACE_ABI = [
   },
   {
     "inputs": [
-      { "internalType": "uint256", "name": "tileId", "type": "uint256" },
-      { "internalType": "uint256", "name": "duration", "type": "uint256" }
+      { "internalType": "uint256", "name": "tileId", "type": "uint256" }
     ],
     "name": "rentTile",
     "outputs": [],
@@ -161,6 +162,7 @@ export const TILE_MARKETPLACE_ABI = [
       { "internalType": "uint256", "name": "tileId", "type": "uint256" },
       { "internalType": "address", "name": "owner", "type": "address" },
       { "internalType": "uint256", "name": "pricePerDay", "type": "uint256" },
+      { "internalType": "uint256", "name": "duration", "type": "uint256" },
       { "internalType": "bool", "name": "isActive", "type": "bool" },
       { "internalType": "bool", "name": "isNativePayment", "type": "bool" },
       { "internalType": "address", "name": "currentRenter", "type": "address" },
@@ -264,45 +266,14 @@ export const TILE_MARKETPLACE_ABI = [
   {
     "inputs": [],
     "name": "getAllSaleListings",
-    "outputs": [
-      {
-        "components": [
-          { "internalType": "uint256", "name": "tileId", "type": "uint256" },
-          { "internalType": "address", "name": "seller", "type": "address" },
-          { "internalType": "uint256", "name": "price", "type": "uint256" },
-          { "internalType": "bool", "name": "isActive", "type": "bool" },
-          { "internalType": "bool", "name": "isNativePayment", "type": "bool" },
-          { "internalType": "uint256", "name": "listedAt", "type": "uint256" }
-        ],
-        "internalType": "struct TileMarketplace.SaleListing[]",
-        "name": "",
-        "type": "tuple[]"
-      }
-    ],
+    "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }],
     "stateMutability": "view",
     "type": "function"
   },
   {
     "inputs": [],
     "name": "getAllRentalListings",
-    "outputs": [
-      {
-        "components": [
-          { "internalType": "uint256", "name": "tileId", "type": "uint256" },
-          { "internalType": "address", "name": "owner", "type": "address" },
-          { "internalType": "uint256", "name": "pricePerDay", "type": "uint256" },
-          { "internalType": "bool", "name": "isActive", "type": "bool" },
-          { "internalType": "bool", "name": "isNativePayment", "type": "bool" },
-          { "internalType": "address", "name": "currentRenter", "type": "address" },
-          { "internalType": "uint256", "name": "rentalStart", "type": "uint256" },
-          { "internalType": "uint256", "name": "rentalEnd", "type": "uint256" },
-          { "internalType": "uint256", "name": "listedAt", "type": "uint256" }
-        ],
-        "internalType": "struct TileMarketplace.RentalListing[]",
-        "name": "",
-        "type": "tuple[]"
-      }
-    ],
+    "outputs": [{ "internalType": "uint256[]", "name": "", "type": "uint256[]" }],
     "stateMutability": "view",
     "type": "function"
   },

@@ -1,7 +1,7 @@
 const { ethers } = require("hardhat");
 
 async function main() {
-    console.log("🎯 Deploying Weekly Auction Contract...\n");
+    console.log("🎯 Deploying SpringfieldAuctionV2 Contract...\n");
 
     // Get the deployer account
     const [deployer] = await ethers.getSigners();
@@ -45,7 +45,7 @@ async function main() {
     console.log("⚙️  Getting contract factory...");
     const WeeklyAuction = await ethers.getContractFactory("WeeklyAuction");
 
-    console.log("🚀 Deploying contract...");
+    console.log("🚀 Deploying WeeklyAuction contract...");
     const auction = await WeeklyAuction.deploy(
         CONFIG.BOT_ADDRESS,
         CONFIG.BID_RECIPIENT,
@@ -55,8 +55,8 @@ async function main() {
     console.log("⏳ Waiting for deployment...");
     await auction.waitForDeployment();
 
-    console.log("\n✅ CONTRACT DEPLOYED SUCCESSFULLY!");
-    console.log("=====================================");
+    console.log("\n✅ WEEKLY AUCTION CONTRACT DEPLOYED SUCCESSFULLY!");
+    console.log("=========================================================");
     console.log(`📍 Contract Address: ${await auction.getAddress()}`);
     console.log(`🔗 Transaction Hash: ${auction.deploymentTransaction().hash}`);
     console.log(`⛽ Gas Used: ${auction.deploymentTransaction().gasLimit.toString()}`);
@@ -128,10 +128,10 @@ async function main() {
     const network = await ethers.provider.getNetwork();
     if (network.name !== "hardhat" && network.name !== "localhost") {
         console.log("\n🔍 To verify on block explorer, run:");
-        console.log(`npx hardhat verify --network pepe_unchained_v2_testnet ${auction.address} "${CONFIG.BOT_ADDRESS}" "${CONFIG.BID_RECIPIENT}" "${CONFIG.BIDDING_TOKEN}"`);
+        console.log(`npx hardhat verify --network pepe_unchained_v2 ${await auction.getAddress()} "${CONFIG.BOT_ADDRESS}" "${CONFIG.BID_RECIPIENT}" "${CONFIG.BIDDING_TOKEN}"`);
     }
 
-    console.log("\n🎉 Deployment completed successfully!");
+    console.log("\n🎉 WeeklyAuction deployment completed successfully!");
 }
 
 // Execute deployment

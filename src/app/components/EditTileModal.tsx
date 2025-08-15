@@ -144,43 +144,53 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
       
       // Pre-populate form with existing data
       if (tile) {
-        setForm({
+        // Create a clean tile object with only the properties we need
+        const cleanTile = {
+          id: tile.id || tile.tileId,
           name: tile.name || '',
+          website: tile.website || '',
+          socials: tile.socials || {},
+          imageCID: tile.imageCID || '',
+          isCurrentlyRented: tile.isCurrentlyRented || false
+        };
+        
+        setForm({
+          name: cleanTile.name,
           telegram: '',
           discord: '',
           x: '',
-          website: tile.website || '',
+          website: cleanTile.website,
         });
         
         // Determine user type and pre-populate social fields
-        if (tile.socials) {
-          if (tile.socials.primary) {
+        if (cleanTile.socials) {
+          if (cleanTile.socials.primary) {
             // Project type
             setUserType('project');
-            const primaryPlatform = Object.keys(tile.socials.primary)[0];
-            const primaryValue = tile.socials.primary[primaryPlatform];
+            const primaryPlatform = Object.keys(cleanTile.socials.primary)[0];
+            const primaryValue = cleanTile.socials.primary[primaryPlatform];
             setProjectPrimaryPlatform(primaryPlatform as 'telegram' | 'discord' | 'x');
             setProjectPrimaryValue(primaryValue);
             
-            if (tile.socials.additional) {
+            if (cleanTile.socials.additional) {
               setProjectAdditionalLinks([
-                tile.socials.additional[0] || '',
-                tile.socials.additional[1] || ''
+                cleanTile.socials.additional[0] || '',
+                cleanTile.socials.additional[1] || ''
               ]);
             }
           } else {
             // User type
             setUserType('user');
-            const platform = Object.keys(tile.socials)[0];
-            const value = tile.socials[platform];
+            const platform = Object.keys(cleanTile.socials)[0];
+            const value = cleanTile.socials[platform];
             setUserSocialPlatform(platform as 'telegram' | 'discord' | 'x');
             setUserSocialValue(value);
           }
         }
         
         // Set image preview if exists
-        if (tile.imageCID) {
-          setImagePreview(`https://gateway.lighthouse.storage/ipfs/${tile.imageCID}`);
+        if (cleanTile.imageCID) {
+          setImagePreview(`https://gateway.lighthouse.storage/ipfs/${cleanTile.imageCID}`);
         }
       }
     }
@@ -247,6 +257,13 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
     setErrorMsg(null);
     setSuccessMsg(null);
     
+    // Check if tile is currently rented - only prevent editing if user is the owner
+    // Renters can edit tiles they're currently renting
+    if (tile?.isCurrentlyRented && !tile?.isRentedByUser) {
+      setErrorMsg("Cannot edit a tile that is currently rented by someone else. Please wait until the rental period ends.");
+      return;
+    }
+    
     // Handle both tile.id and tile.tileId for compatibility
     const tileIdValue = tile?.id || tile?.tileId;
     if (!tileIdValue) {
@@ -267,7 +284,16 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
     
     setUploading(true);
     try {
-      let imageCID = tile.imageCID; // Keep existing image if no new one uploaded
+      // Create a clean tile object to avoid BigInt serialization issues
+      const cleanTile = {
+        id: tile.id || tile.tileId,
+        name: tile.name || '',
+        website: tile.website || '',
+        socials: tile.socials || {},
+        imageCID: tile.imageCID || ''
+      };
+      
+      let imageCID = cleanTile.imageCID; // Keep existing image if no new one uploaded
       
       // 1. Upload new image if provided
       if (imageFile && imageFile.length > 0) {
@@ -296,22 +322,23 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
         console.log("New image CID:", imageCID);
       }
 
-      // 2. Prepare metadata JSON with the image CID
+      // 2. Prepare metadata JSON with the image CID - ensure all values are serializable
       const metadata = {
-        tile: tileIdValue || null,
-        name: form.name,
+        tile: String(tileIdValue || ''),
+        name: String(form.name || ''),
         socials: userType === 'user'
-          ? { [userSocialPlatform]: userSocialValue }
+          ? { [String(userSocialPlatform || '')]: String(userSocialValue || '') }
           : {
-              primary: { [projectPrimaryPlatform]: projectPrimaryValue },
-              additional: projectAdditionalLinks.filter(Boolean),
+              primary: { [String(projectPrimaryPlatform || '')]: String(projectPrimaryValue || '') },
+              additional: projectAdditionalLinks.filter(Boolean).map(link => String(link || '')),
             },
-        website: form.website || null,
-        address: connectedAddress,
-        imageCID,
-        timestamp: Date.now(),
-        userType: userType,
+        website: form.website ? String(form.website) : null,
+        address: connectedAddress ? String(connectedAddress) : null,
+        imageCID: imageCID ? String(imageCID) : null,
+        timestamp: Number(Date.now()),
+        userType: userType ? String(userType) : null,
       };
+      
       const metadataText = JSON.stringify(metadata, null, 2);
       console.log("Updated metadata JSON:", metadataText);
 
@@ -349,7 +376,7 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
       const tx = await tileMarketplace.updateTileMetadata(tileId, metadataUri);
       await tx.wait();
 
-      // 5. Success: show success message
+      // 6. Success: show success message
       setSuccessMsg("Tile updated successfully!");
       setStep('success');
       setTimeout(() => {
@@ -382,11 +409,18 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
 
   // Form step
   if (step === 'form') {
+    // Check if tile is currently rented
+    const isTileRented = tile?.isCurrentlyRented;
+    
     content = (
       <form
         className="flex flex-col gap-4 w-full max-w-md mx-auto overflow-visible"
         onSubmit={e => {
           e.preventDefault();
+          if (isTileRented && !tile?.isRentedByUser) {
+            setErrorMsg("Cannot edit a tile that is currently rented by someone else. Please wait until the rental period ends.");
+            return;
+          }
           const errs = validateSocialLinks(userType, form, userSocialPlatform, userSocialValue, projectPrimaryPlatform, projectPrimaryValue, projectAdditionalLinks, imageFile as any);
           setErrors(errs);
           if (Object.keys(errs).length === 0) {
@@ -397,15 +431,36 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
       >
         <h2 className={`text-xl ${springfieldFont} text-yellow-300 mb-4 w-full text-center`}>Edit Tile Details</h2>
         
+        {/* Rental Status Warning */}
+        {isTileRented && !tile?.isRentedByUser && (
+          <div className="w-full p-3 bg-orange-500/20 border border-orange-500/30 rounded-lg text-center">
+            <div className="text-orange-300 text-sm font-medium mb-1">⚠️ Tile Currently Rented by Someone Else</div>
+            <div className="text-orange-200 text-xs">This tile cannot be edited while it is rented by another user. Please wait until the rental period ends.</div>
+          </div>
+        )}
+        
+        {/* Renter Edit Notice */}
+        {isTileRented && tile?.isRentedByUser && (
+          <div className="w-full p-3 bg-blue-500/20 border border-blue-500/30 rounded-lg text-center">
+            <div className="text-blue-300 text-sm font-medium mb-1">✏️ You Can Edit This Rented Tile</div>
+            <div className="text-blue-200 text-xs">You are currently renting this tile and can edit its metadata.</div>
+          </div>
+        )}
+        
         {/* Name field */}
         <div className="flex flex-col w-full text-left">
           <label className="mb-1 font-semibold text-black" htmlFor="name">Name</label>
           <input
             id="name"
-            className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full text-left"
+            className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full text-left ${
+              (isTileRented && !tile?.isRentedByUser)
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-white text-black'
+            }`}
             placeholder="Name"
             value={form.name}
             onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            disabled={isTileRented && !tile?.isRentedByUser}
           />
           {errors.name && <div className="text-red-500 text-sm text-left w-full mt-1">{errors.name}</div>}
         </div>
@@ -417,8 +472,13 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
             id="imageFile"
             type="file"
             accept="image/*"
-            className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
+            className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full ${
+              (isTileRented && !tile?.isRentedByUser)
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                : 'bg-white text-black'
+            }`}
             onChange={e => {
+              if (isTileRented && !tile?.isRentedByUser) return;
               setImageFile(e.target.files);
               setErrors(errs => ({ ...errs, imageFile: '' }));
               const file = e.target.files && e.target.files[0];
@@ -432,6 +492,7 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
                 }
               }
             }}
+            disabled={isTileRented && !tile?.isRentedByUser}
           />
           {errors.imageFile && <div className="text-red-500 text-sm text-left w-full mt-1">{errors.imageFile}</div>}
           {imagePreview && (
@@ -445,9 +506,14 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
               <label className="mb-1 font-semibold text-black" htmlFor="userSocialPlatform">Social Platform</label>
               <select
                 id="userSocialPlatform"
-                className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
-                value={userSocialPlatform}
-                onChange={e => setUserSocialPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                                  className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full ${
+                    (isTileRented && !tile?.isRentedByUser)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-black'
+                  }`}
+                 value={userSocialPlatform}
+                 onChange={e => setUserSocialPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                  disabled={isTileRented && !tile?.isRentedByUser}
               >
                 <option value="telegram">Telegram</option>
                 <option value="discord">Discord</option>
@@ -458,16 +524,21 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
               <label className="mb-1 font-semibold text-black" htmlFor="userSocialValue">Username / ID</label>
               <input
                 id="userSocialValue"
-                className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
-                placeholder={
-                  userSocialPlatform === 'telegram'
-                    ? 'Telegram username (e.g. simpsonsfan)'
-                    : userSocialPlatform === 'discord'
-                    ? 'Discord user ID (e.g. 1234567890)'
-                    : 'X username (e.g. simpsonsfan)'
-                }
-                value={userSocialValue}
-                onChange={e => setUserSocialValue(e.target.value)}
+                                   className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full ${
+                    (isTileRented && !tile?.isRentedByUser)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-black'
+                  }`}
+                 placeholder={
+                   userSocialPlatform === 'telegram'
+                     ? 'Telegram username (e.g. simpsonsfan)'
+                     : userSocialPlatform === 'discord'
+                     ? 'Discord user ID (e.g. 1234567890)'
+                     : 'X username (e.g. simpsonsfan)'
+                 }
+                 value={userSocialValue}
+                 onChange={e => setUserSocialValue(e.target.value)}
+                  disabled={isTileRented && !tile?.isRentedByUser}
               />
               {errors.userSocialValue && <div className="text-red-500 text-sm text-left w-full mt-1">{errors.userSocialValue}</div>}
             </div>
@@ -478,25 +549,35 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
               <label className="mb-1 font-semibold text-black" htmlFor="projectPrimaryPlatform">Primary Social Link</label>
               <select
                 id="projectPrimaryPlatform"
-                className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
-                value={projectPrimaryPlatform}
-                onChange={e => setProjectPrimaryPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                                  className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full ${
+                    (isTileRented && !tile?.isRentedByUser)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-black'
+                  }`}
+                 value={projectPrimaryPlatform}
+                 onChange={e => setProjectPrimaryPlatform(e.target.value as 'telegram' | 'discord' | 'x')}
+                  disabled={isTileRented && !tile?.isRentedByUser}
               >
                 <option value="telegram">Telegram</option>
                 <option value="discord">Discord</option>
                 <option value="x">X (Twitter)</option>
               </select>
               <input
-                className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full mt-2"
-                placeholder={
-                  projectPrimaryPlatform === 'telegram'
-                    ? 'Telegram group/channel link'
-                    : projectPrimaryPlatform === 'discord'
-                    ? 'Discord server invite'
-                    : 'X (Twitter) profile link'
-                }
-                value={projectPrimaryValue}
-                onChange={e => setProjectPrimaryValue(e.target.value)}
+                                  className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full mt-2 ${
+                    (isTileRented && !tile?.isRentedByUser)
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-white text-black'
+                  }`}
+                 placeholder={
+                   projectPrimaryPlatform === 'telegram'
+                     ? 'Telegram group/channel link'
+                     : projectPrimaryPlatform === 'discord'
+                     ? 'Discord server invite'
+                     : 'X (Twitter) profile link'
+                 }
+                 value={projectPrimaryValue}
+                 onChange={e => setProjectPrimaryValue(e.target.value)}
+                  disabled={isTileRented && !tile?.isRentedByUser}
               />
               {errors.projectPrimaryValue && <div className="text-red-500 text-sm text-left w-full mt-1">{errors.projectPrimaryValue}</div>}
             </div>
@@ -505,14 +586,19 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
               <div className="flex flex-col w-full text-left" key={i}>
                 <label className="mb-1 font-semibold text-black">Additional Social Link {i + 1}</label>
                 <input
-                  className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full"
-                  placeholder="Any valid social or website link"
-                  value={projectAdditionalLinks[i]}
-                  onChange={e => setProjectAdditionalLinks(links => {
-                    const newLinks = [...links];
-                    newLinks[i] = e.target.value;
-                    return newLinks;
-                  })}
+                                       className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full ${
+                      (isTileRented && !tile?.isRentedByUser)
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                        : 'bg-white text-black'
+                    }`}
+                   placeholder="Any valid social or website link"
+                   value={projectAdditionalLinks[i]}
+                   onChange={e => setProjectAdditionalLinks(links => {
+                     const newLinks = [...links];
+                     newLinks[i] = e.target.value;
+                     return newLinks;
+                   })}
+                    disabled={isTileRented && !tile?.isRentedByUser}
                 />
                 {errors[`projectAdditionalLinks${i}`] && <div className="text-red-500 text-sm text-left w-full mt-1">{errors[`projectAdditionalLinks${i}`]}</div>}
               </div>
@@ -524,10 +610,15 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
           <label className="mb-1 font-semibold text-black" htmlFor="website">Website</label>
           <input
             id="website"
-            className="rounded-md border-2 border-black px-4 py-2 bg-white text-black font-semibold w-full text-left"
-            placeholder="Website (optional)"
-            value={form.website}
-            onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+                           className={`rounded-md border-2 border-black px-4 py-2 font-semibold w-full text-left ${
+                (isTileRented && !tile?.isRentedByUser)
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-white text-black'
+              }`}
+             placeholder="Website (optional)"
+             value={form.website}
+             onChange={e => setForm(f => ({ ...f, website: e.target.value }))}
+              disabled={isTileRented && !tile?.isRentedByUser}
           />
           {errors.website && <div className="text-red-500 text-sm text-left w-full mt-1">{errors.website}</div>}
         </div>
@@ -546,11 +637,15 @@ export default function EditTileModal({ open, onClose, tile }: EditTileModalProp
           </button>
           <button
             type="submit"
-            className={`${springfieldButton} bg-yellow-300 text-black hover:bg-yellow-200`}
-            disabled={uploading}
+                           className={`${springfieldButton} ${
+                (isTileRented && !tile?.isRentedByUser)
+                  ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+                  : 'bg-yellow-300 text-black hover:bg-yellow-200'
+              }`}
+              disabled={uploading || (isTileRented && !tile?.isRentedByUser)}
           >
             {uploading ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-            {uploading ? 'Updating...' : 'Update Tile'}
+             {uploading ? 'Updating...' : (isTileRented && !tile?.isRentedByUser) ? 'Cannot Edit Rented Tile' : 'Update Tile'}
           </button>
         </div>
       </form>
