@@ -287,12 +287,34 @@ export default function BulkListModal({ isOpen, onClose, userTiles }: BulkListMo
                       <input
                         type="number"
                         value={rentDuration}
-                        onChange={(e) => setRentDuration(e.target.value)}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (value > 7) {
+                            e.target.value = '7';
+                            setRentDuration('7');
+                          } else if (value < 1) {
+                            e.target.value = '1';
+                            setRentDuration('1');
+                          } else {
+                            setRentDuration(e.target.value);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = parseInt(e.target.value);
+                          if (value > 7) {
+                            e.target.value = '7';
+                            setRentDuration('7');
+                          } else if (value < 1 || isNaN(value)) {
+                            e.target.value = '1';
+                            setRentDuration('1');
+                          }
+                        }}
                         placeholder="1"
                         min="1"
-                        max="365"
+                        max="7"
                         className="w-full px-3 py-2 bg-slate-700/50 border-2 border-emerald-400/50 rounded-lg text-white placeholder-slate-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
                       />
+                      <p className="text-xs text-emerald-200 mt-1 font-medium">Maximum 7 days (contract limit)</p>
                     </div>
                   </>
                 )}

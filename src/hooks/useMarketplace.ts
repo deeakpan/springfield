@@ -133,6 +133,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'listTileForSale',
         args: [BigInt(tileId), priceInWei, isNativePayment],
+        gas: BigInt(300000), // Add gas limit to prevent excessive fees
       });
       
       console.log('Transaction hash:', hash);
@@ -166,6 +167,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'listTileForRent',
         args: [BigInt(tileId), priceInWei, BigInt(duration), isNativePayment],
+        gas: BigInt(300000), // Add gas limit to prevent excessive fees
       });
       
       console.log('Transaction hash:', hash);
@@ -220,6 +222,7 @@ export function useMarketplace() {
             ],
             functionName: 'approve',
             args: [CONTRACT_ADDRESSES.MARKETPLACE as `0x${string}`, priceInWei],
+            gas: BigInt(150000), // Add gas limit for approve operation
           });
           
           console.log('Approval transaction hash:', approveHash);
@@ -341,6 +344,7 @@ export function useMarketplace() {
             ],
             functionName: 'approve',
             args: [CONTRACT_ADDRESSES.MARKETPLACE as `0x${string}`, totalCost as bigint],
+            gas: BigInt(150000), // Add gas limit for approve operation
           });
           
           console.log('Approval transaction hash:', approveHash);
@@ -455,6 +459,65 @@ export function useMarketplace() {
     }
   };
 
+  const cleanupExpiredRentalAction = async (tileId: number) => {
+    console.log('🧹 cleanupExpiredRentalAction CALLED! 🧹');
+    console.log('tileId:', tileId);
+    
+    try {
+      console.log('Cleaning up expired rental:', tileId);
+      console.log('writeContract function available:', !!writeContractAsync);
+      console.log('Contract address:', CONTRACT_ADDRESSES.MARKETPLACE);
+      
+      if (!writeContractAsync) {
+        alert('Wallet not connected or writeContract not available');
+        return;
+      }
+      
+      if (!CONTRACT_ADDRESSES.MARKETPLACE || CONTRACT_ADDRESSES.MARKETPLACE === "0x...") {
+        alert('Contract address not configured');
+        return;
+      }
+      
+      console.log('About to call writeContractAsync for cleanupExpiredRental...');
+      const hash = await writeContractAsync({
+        address: CONTRACT_ADDRESSES.MARKETPLACE as `0x${string}`,
+        abi: TILE_MARKETPLACE_ABI,
+        functionName: 'cleanupExpiredRental',
+        args: [BigInt(tileId)],
+        gas: BigInt(150000), // Optimize gas for cleanup operation
+      });
+      
+      console.log('Transaction hash:', hash);
+      
+      return hash; // Return the transaction hash for success
+      
+    } catch (error) {
+      console.error('Error cleaning up expired rental:', error);
+      throw error; // Re-throw the error so the modal can catch it
+    }
+  };
+
+  // Utility: process array in batches to avoid RPC overload
+  const processInBatches = async <I, O>(
+    items: I[],
+    batchSize: number,
+    handler: (item: I) => Promise<O>,
+    interBatchDelayMs = 100
+  ): Promise<O[]> => {
+    const results: O[] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      const batchResults = await Promise.all(
+        batch.map((item) => handler(item).catch(() => null as unknown as O))
+      );
+      results.push(...batchResults);
+      if (interBatchDelayMs > 0 && i + batchSize < items.length) {
+        await new Promise(resolve => setTimeout(resolve, interBatchDelayMs));
+      }
+    }
+    return results;
+  };
+
   // Fetch marketplace data
   const fetchMarketplaceData = useCallback(async () => {
     if (!process.env.NEXT_PUBLIC_RPC_URL || !CONTRACT_ADDRESSES.MARKETPLACE) {
@@ -478,43 +541,50 @@ export function useMarketplace() {
       const rentalListingIds = await marketplace.getAllRentalListings();
       console.log('Rental listing IDs:', rentalListingIds);
       
-      // Step 2: Get details only for listed tiles
+      // Step 2: Get details only for listed tiles using batching
       console.log('Getting details for sale listings...');
       const saleListings: SaleListing[] = [];
       if (saleListingIds && saleListingIds.length > 0) {
-        const saleDetails = await Promise.all(
-          saleListingIds.map(async (tileId: bigint) => {
-          try {
-            // Get the actual sale listing to get the correct payment type
-            const saleListing = await marketplace.saleListings(tileId);
-            console.log(`Sale listing details for tile ${tileId}:`, {
-              tileId: tileId.toString(),
-              seller: saleListing.seller,
-              price: saleListing.price.toString(),
-              isActive: saleListing.isActive,
-              isNativePayment: saleListing.isNativePayment
-            });
-            return {
-                tileId: tileId,
+        const BATCH_SIZE = 10; // Process 10 tiles at a time
+        const saleDetails = await processInBatches<bigint, SaleListing | null>(
+          saleListingIds,
+          BATCH_SIZE,
+          async (tileId: bigint) => {
+            try {
+              // Get the actual sale listing to get the correct payment type
+              const saleListing = await marketplace.saleListings(tileId);
+              console.log(`Sale listing details for tile ${tileId}:`, {
+                tileId: tileId.toString(),
                 seller: saleListing.seller,
-                price: BigInt(saleListing.price),
+                price: saleListing.price.toString(),
                 isActive: saleListing.isActive,
                 isNativePayment: saleListing.isNativePayment
-            };
-          } catch (error) {
-              console.error(`Error fetching details for sale tile ${tileId}:`, error);
-            return null;
-          }
-        })
-      );
-        saleListings.push(...saleDetails.filter(Boolean));
+              });
+              return {
+                  tileId: tileId,
+                  seller: saleListing.seller,
+                  price: BigInt(saleListing.price),
+                  isActive: saleListing.isActive,
+                  isNativePayment: saleListing.isNativePayment
+              };
+            } catch (error) {
+                console.error(`Error fetching details for sale tile ${tileId}:`, error);
+              return null;
+            }
+          },
+          100 // 100ms delay between batches
+        );
+        saleListings.push(...(saleDetails.filter(Boolean) as SaleListing[]));
       }
       
       console.log('Getting details for rental listings...');
       const rentalListings: RentalListing[] = [];
       if (rentalListingIds && rentalListingIds.length > 0) {
-        const rentalDetails = await Promise.all(
-          rentalListingIds.map(async (tileId: bigint) => {
+        const BATCH_SIZE = 10; // Process 10 tiles at a time
+        const rentalDetails = await processInBatches<bigint, RentalListing | null>(
+          rentalListingIds,
+          BATCH_SIZE,
+          async (tileId: bigint) => {
             try {
               // Get the actual rental listing to get the correct payment type
               const rentalListing = await marketplace.rentalListings(tileId);
@@ -558,9 +628,10 @@ export function useMarketplace() {
               console.error(`Error fetching details for rental tile ${tileId}:`, error);
               return null;
             }
-          })
+          },
+          100 // 100ms delay between batches
         );
-        rentalListings.push(...rentalDetails.filter(Boolean));
+        rentalListings.push(...(rentalDetails.filter(Boolean) as RentalListing[]));
       }
       
       setActiveSaleListings(saleListings);
@@ -605,10 +676,13 @@ export function useMarketplace() {
         return;
       }
       
-      // Step 2: Get details for each tile
+      // Step 2: Get details for each tile using batching
       console.log('Getting details for each tile...');
-      const userTilesDetails = await Promise.all(
-        userOwnedTileIds.map(async (tileData: any) => {
+      const BATCH_SIZE = 10; // Process 10 tiles at a time
+      const userTilesDetails = await processInBatches<any, any>(
+        userOwnedTileIds,
+        BATCH_SIZE,
+        async (tileData: any) => {
           try {
             const tileId = tileData.tileId;
             const details = await marketplace.getTileDetails(tileId);
@@ -634,7 +708,8 @@ export function useMarketplace() {
             console.error(`Error fetching details for tile ${tileData.tileId}:`, error);
             return null;
           }
-        })
+        },
+        100 // 100ms delay between batches
       );
       
       // Step 3: Filter tiles by listing status
@@ -753,8 +828,11 @@ export function useMarketplace() {
         console.log('All rental listing IDs:', allRentalListingIds);
         if (allRentalListingIds && allRentalListingIds.length > 0) {
           console.log(`Checking ${allRentalListingIds.length} rental listings for user ${address}...`);
-          const rentalDetails = await Promise.all(
-            allRentalListingIds.map(async (tileId: bigint) => {
+          const BATCH_SIZE = 10; // Process 10 tiles at a time
+          const rentalDetails = await processInBatches<bigint, any>(
+            allRentalListingIds,
+            BATCH_SIZE,
+            async (tileId: bigint) => {
               try {
                 const rentalListing = await marketplace.rentalListings(tileId);
                 console.log(`Tile ${tileId} rental details:`, {
@@ -792,7 +870,8 @@ export function useMarketplace() {
                 console.warn(`Error getting rental details for tile ${tileId}:`, error);
                 return null;
               }
-            })
+            },
+            100 // 100ms delay between batches
           );
           userRentedTileIds = rentalDetails.filter(Boolean);
           console.log('Found rentals where user is current renter:', userRentedTileIds);
@@ -841,10 +920,13 @@ export function useMarketplace() {
         return;
       }
       
-      // Step 3: Get details for each tile
+            // Step 3: Get details for each tile using batching
       console.log('Getting details for each tile...');
-      const allTilesDetails = await Promise.all(
-        allTileIds.map(async (tileData: any) => {
+      const BATCH_SIZE = 10; // Process 10 tiles at a time
+      const allTilesDetails = await processInBatches<any, any>(
+        allTileIds,
+        BATCH_SIZE,
+        async (tileData: any) => {
           try {
             const tileId = tileData.tileId;
             const details = await marketplace.getTileDetails(tileId);
@@ -871,7 +953,7 @@ export function useMarketplace() {
                  rentalEndType: typeof rentalData.rentalEnd,
                  rentalEndString: rentalData.rentalEnd.toString(),
                  rentalEndNumber: Number(rentalData.rentalEnd),
-                 isValidTimestamp: Number(rentalData.rentalEnd) > 0 && Number(rentalData.rentalEnd) < 9999999999
+                     isValidTimestamp: Number(rentalData.rentalEnd) > 0 && Number(rentalData.rentalEnd) < 9999999999
                });
              }
             
@@ -904,7 +986,8 @@ export function useMarketplace() {
             console.error(`Error fetching details for tile ${tileData.tileId}:`, error);
             return null;
           }
-        })
+        },
+        100 // 100ms delay between batches
       );
       
       // Step 4: Process each tile and fetch its metadata
@@ -1031,13 +1114,14 @@ export function useMarketplace() {
      springBalance: springBalance ? formatEther(springBalance.value) : '0',
      nativeBalance: nativeBalance ? formatEther(nativeBalance.value) : '0',
     
-    // Actions
-    listTileForSaleAction,
-    listTileForRentAction,
-    buyListedTileAction,
-    rentTileAction,
-    cancelSaleListingAction,
-    cancelRentalListingAction,
+      // Actions
+  listTileForSaleAction,
+  listTileForRentAction,
+  buyListedTileAction,
+  rentTileAction,
+  cancelSaleListingAction,
+  cancelRentalListingAction,
+  cleanupExpiredRentalAction,
     
     // Data fetching
     fetchMarketplaceData,

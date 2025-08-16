@@ -20,12 +20,24 @@ const initialFormState = {
   website: '',
 };
 
+// Pricing model constants (same as pricing page)
+const TOTAL_TILES = 765;
+const TIER_SIZE = 40; // every 40 sold
+const BASE_PRICE = 12000; // PEPU starting price
+const TIER_INCREMENT = 600; // +600 PEPU per tier
+
+// Function to calculate current tile price based on tiles sold
+const calculateCurrentPrice = (tilesSold: number): number => {
+  const tier = Math.floor(tilesSold / TIER_SIZE);
+  return BASE_PRICE + (tier * TIER_INCREMENT);
+};
+
 export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalProps) {
   const [step, setStep] = useState<Step>('choose');
   const [userType, setUserType] = useState<UserType>(null);
   const [form, setForm] = useState(initialFormState);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [pricePerTile, setPricePerTile] = useState<string>('22800');
+  const [pricePerTile, setPricePerTile] = useState<string>('0');
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -41,6 +53,37 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
   const modalRef = useRef<HTMLDivElement>(null);
 
   const TILE_PURCHASE_ADDRESS = process.env.NEXT_PUBLIC_TILE_CONTRACT;
+
+  // Function to fetch current tile price from contract
+  const fetchCurrentPrice = async () => {
+    if (!process.env.NEXT_PUBLIC_RPC_URL || !process.env.NEXT_PUBLIC_TILE_CORE_ADDRESS) {
+      console.error('Missing RPC URL or TileCore address');
+      return;
+    }
+
+    try {
+      setLoadingPrice(true);
+      const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_RPC_URL);
+      const tileCore = new ethers.Contract(
+        process.env.NEXT_PUBLIC_TILE_CORE_ADDRESS,
+        ["function totalTilesCount() external view returns (uint256)"],
+        provider
+      );
+      
+      const totalTilesCount = await tileCore.totalTilesCount();
+      const tilesSold = Number(totalTilesCount);
+      const currentPrice = calculateCurrentPrice(tilesSold);
+      
+      console.log(`Total tiles sold: ${tilesSold}, Current price: ${currentPrice} PEPU`);
+      setPricePerTile(currentPrice.toString());
+    } catch (error) {
+      console.error('Error fetching current price:', error);
+      // Fallback to base price if contract call fails
+      setPricePerTile(BASE_PRICE.toString());
+    } finally {
+      setLoadingPrice(false);
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -80,9 +123,7 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
 
   useEffect(() => {
     if (step === 'price' && open) {
-      setLoadingPrice(true);
-              setPricePerTile('22800');
-      setLoadingPrice(false);
+      fetchCurrentPrice();
     }
   }, [step, open]);
 
@@ -196,7 +237,10 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
       let successCount = 0;
       for (const id of tileIds) {
         try {
-          const tx = await marketplace.buyTileWithNative(id, metadataUri, { value: perTile });
+          const tx = await marketplace.buyTileWithNative(id, metadataUri, { 
+            value: perTile,
+            gasLimit: 300000 // Add gas limit to prevent excessive fees
+          });
           await tx.wait();
           successCount += 1;
         } catch (e) {
@@ -335,8 +379,25 @@ export default function BulkBuyModal({ open, onClose, tileIds }: BulkBuyModalPro
           <div className="flex flex-col gap-3">
             <h2 className="text-xl font-bold text-yellow-300 text-center">Confirm Bulk Purchase</h2>
             <div className="text-white text-center">Selected tiles: <span className="font-bold">{tileIds.length}</span></div>
-            <div className="text-white text-center">Price per tile: <span className="font-bold">{pricePerTile}</span> PEPU</div>
-            <div className="text-white text-center">Total: <span className="font-bold">{Number(pricePerTile) * tileIds.length}</span> PEPU</div>
+            <div className="text-white text-center">
+              Price per tile: 
+              {loadingPrice ? (
+                <span className="font-bold flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin w-4 h-4" />
+                  Loading...
+                </span>
+              ) : (
+                <span className="font-bold">{pricePerTile} PEPU</span>
+              )}
+            </div>
+            <div className="text-white text-center">
+              Total: 
+              {loadingPrice ? (
+                <span className="font-bold">Calculating...</span>
+              ) : (
+                <span className="font-bold">{Number(pricePerTile) * tileIds.length} PEPU</span>
+              )}
+            </div>
             {errorMsg && <div className="text-red-500 text-center font-bold">{errorMsg}</div>}
             {successMsg && <div className="text-green-500 text-center font-bold">{successMsg}</div>}
             <div className="flex justify-between">

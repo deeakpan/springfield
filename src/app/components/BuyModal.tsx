@@ -393,7 +393,10 @@ export default function BuyModal({ open, onClose, tile }: BuyModalProps) {
       const tx = await tileMarketplace.buyTileWithNative(
         tileId, 
         metadataUri,
-        { value: nativeAmount }
+        { 
+          value: nativeAmount,
+          gasLimit: 300000 // Add gas limit to prevent excessive fees
+        }
       );
       await tx.wait();
 

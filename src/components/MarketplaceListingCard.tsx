@@ -21,10 +21,12 @@ interface MarketplaceListingCardProps {
   onBuy?: (tileId: number, price: string, isNativePayment: boolean) => void;
   onRent?: (tileId: number) => void;
   onCancel?: (tileId: number) => void;
+  onReclaim?: (tileId: number) => void;
   isOwnListing?: boolean;
   isCanceling?: boolean;
   isBuying?: boolean;
   isRenting?: boolean;
+  isReclaiming?: boolean;
 }
 
 export default function MarketplaceListingCard({ 
@@ -33,10 +35,12 @@ export default function MarketplaceListingCard({
   onBuy, 
   onRent,
   onCancel,
+  onReclaim,
   isOwnListing = false,
   isCanceling = false,
   isBuying = false,
-  isRenting = false
+  isRenting = false,
+  isReclaiming = false
 }: MarketplaceListingCardProps) {
   const { address } = useAccount();
   const [metadata, setMetadata] = useState<any>(null);
@@ -49,6 +53,7 @@ export default function MarketplaceListingCard({
   
   // Check if tile is currently rented (for rental listings)
   const [isCurrentlyRented, setIsCurrentlyRented] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
   
   // Fetch rental status from contract
   useEffect(() => {
@@ -67,9 +72,17 @@ export default function MarketplaceListingCard({
             rentalListing.currentRenter !== '0x0000000000000000000000000000000000000000';
           
           setIsCurrentlyRented(hasActiveRenter);
+          
+          // Check if rental has expired
+          if (rentalListing.rentalEnd) {
+            const currentTime = Math.floor(Date.now() / 1000);
+            const rentalEndTime = Number(rentalListing.rentalEnd);
+            setIsExpired(rentalEndTime <= currentTime);
+          }
         } catch (error) {
           console.error('Error checking rental status:', error);
           setIsCurrentlyRented(false);
+          setIsExpired(false);
         }
       }
     };
@@ -155,6 +168,13 @@ export default function MarketplaceListingCard({
         console.log('Cannot cancel rental listing - tile is currently rented');
         return;
       }
+      
+      // Handle expired rental reclaim
+      if (type === 'rental' && isExpired && onReclaim) {
+        onReclaim(Number(listing.tileId));
+        return;
+      }
+      
       onCancel(Number(listing.tileId));
     } else if (isOwnTile) {
       return;
@@ -193,6 +213,15 @@ export default function MarketplaceListingCard({
           className: `${baseClasses} bg-slate-600/40 border border-slate-600/40 text-slate-400 cursor-not-allowed`,
           text: 'Currently Rented - Cannot Cancel',
           loading: false
+        };
+      }
+      
+      // Check if this is an expired rental that needs reclaiming
+      if (type === 'rental' && isExpired && onReclaim) {
+        return {
+          className: `${baseClasses} bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/30 text-orange-300 disabled:opacity-50 disabled:cursor-not-allowed`,
+          text: isReclaiming ? 'Processing...' : 'Reclaim Expired Rental',
+          loading: isReclaiming
         };
       }
       
@@ -316,6 +345,14 @@ export default function MarketplaceListingCard({
               <div className="flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded mb-2">
                 <Clock className="w-3 h-3 text-orange-400" />
                 <span className="text-orange-300 text-xs font-medium">Currently Rented</span>
+              </div>
+            )}
+            
+            {/* Expired Rental Warning */}
+            {type === 'rental' && isExpired && (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded mb-2">
+                <Clock className="w-3 h-3 text-red-400" />
+                <span className="text-red-300 text-xs font-medium">Rental Expired</span>
               </div>
             )}
 

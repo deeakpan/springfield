@@ -91,6 +91,7 @@ export default function MarketplacePage() {
     rentTileAction,
     cancelSaleListingAction,
     cancelRentalListingAction,
+    cleanupExpiredRentalAction,
     fetchUserTiles,
     fetchUserListings,
     fetchMarketplaceData,
@@ -201,6 +202,21 @@ export default function MarketplacePage() {
       setButtonLoading(actionKey, false);
     }
   }, [cancelRentalListingAction, setButtonLoading, showSuccessMessage, fetchUserTiles, fetchMarketplaceData]);
+
+  const handleReclaimExpiredRental = useCallback(async (tileId: number) => {
+    const actionKey = `reclaim_${tileId}`;
+    try {
+      setButtonLoading(actionKey, true);
+      await cleanupExpiredRentalAction(tileId);
+      showSuccessMessage(`Reclaimed expired rental for Tile ${tileId}`);
+      fetchUserTiles();
+      fetchMarketplaceData();
+    } catch (error) {
+      console.error('Failed to reclaim expired rental:', error);
+    } finally {
+      setButtonLoading(actionKey, false);
+    }
+  }, [cleanupExpiredRentalAction, setButtonLoading, showSuccessMessage, fetchUserTiles, fetchMarketplaceData]);
 
   const handleListForSale = useCallback(async () => {
     if (!selectedTileForAction || !listingData.price) return;
@@ -672,8 +688,10 @@ export default function MarketplacePage() {
                     listing={listing}
                     type="rental"
                     onCancel={() => handleCancelRentalListing(Number(listing.tileId))}
+                    onReclaim={() => handleReclaimExpiredRental(Number(listing.tileId))}
                     isOwnListing={true}
                     isCanceling={loadingStates[`cancelRent_${Number(listing.tileId)}`]}
+                    isReclaiming={loadingStates[`reclaim_${Number(listing.tileId)}`]}
                   />
                 ))}
               </div>
@@ -811,13 +829,34 @@ export default function MarketplacePage() {
               <input
                 type="number"
                 min="1"
-                max="365"
+                max="7"
                 value={listingData.duration}
-                onChange={(e) => updateListingData('duration', e.target.value)}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value > 7) {
+                    e.target.value = '7';
+                    updateListingData('duration', '7');
+                  } else if (value < 1) {
+                    e.target.value = '1';
+                    updateListingData('duration', '1');
+                  } else {
+                    updateListingData('duration', e.target.value);
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value > 7) {
+                    e.target.value = '7';
+                    updateListingData('duration', '7');
+                  } else if (value < 1 || isNaN(value)) {
+                    e.target.value = '1';
+                    updateListingData('duration', '1');
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-700/50 border-2 border-emerald-400/50 rounded-lg text-white placeholder-slate-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
                 placeholder="7"
               />
-              <p className="text-xs text-emerald-200 mt-1 font-medium">Maximum 365 days</p>
+              <p className="text-xs text-emerald-200 mt-1 font-medium">Maximum 7 days (contract limit)</p>
             </div>
             
             <div>

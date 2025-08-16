@@ -321,6 +321,13 @@ export const TILE_MARKETPLACE_ABI = [
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [{ "internalType": "uint256", "name": "tileId", "type": "uint256" }],
+    "name": "cleanupExpiredRental",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
   }
 ] as const;
 
