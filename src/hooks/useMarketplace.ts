@@ -133,7 +133,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'listTileForSale',
         args: [BigInt(tileId), priceInWei, isNativePayment],
-        gas: BigInt(300000), // Add gas limit to prevent excessive fees
+        gas: BigInt(200000), // Reduced gas limit for sale listing
       });
       
       console.log('Transaction hash:', hash);
@@ -167,7 +167,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'listTileForRent',
         args: [BigInt(tileId), priceInWei, BigInt(duration), isNativePayment],
-        gas: BigInt(300000), // Add gas limit to prevent excessive fees
+        gas: BigInt(250000), // Optimized gas limit for rent listing
       });
       
       console.log('Transaction hash:', hash);
@@ -222,7 +222,7 @@ export function useMarketplace() {
             ],
             functionName: 'approve',
             args: [CONTRACT_ADDRESSES.MARKETPLACE as `0x${string}`, priceInWei],
-            gas: BigInt(150000), // Add gas limit for approve operation
+            gas: BigInt(100000), // Reduced gas limit for approve operation
           });
           
           console.log('Approval transaction hash:', approveHash);
@@ -243,7 +243,7 @@ export function useMarketplace() {
         functionName: 'buyListedTile',
         args: [BigInt(tileId)],
         value: isNativePayment ? priceInWei : BigInt(0),
-        gas: BigInt(300000),
+        gas: BigInt(250000), // Optimized gas limit for buy operation
       });
       
       console.log('Buy transaction hash:', hash);
@@ -312,7 +312,7 @@ export function useMarketplace() {
           functionName: 'rentTile',
           args: [BigInt(tileId)],
           value: totalCost as bigint, // Send the exact rental cost
-          gas: BigInt(300000), // Set reasonable gas limit to prevent excessive fees
+          gas: BigInt(250000), // Optimized gas limit for rent operation
         });
         
         console.log('Rent transaction hash:', hash);
@@ -344,7 +344,7 @@ export function useMarketplace() {
             ],
             functionName: 'approve',
             args: [CONTRACT_ADDRESSES.MARKETPLACE as `0x${string}`, totalCost as bigint],
-            gas: BigInt(150000), // Add gas limit for approve operation
+            gas: BigInt(100000), // Reduced gas limit for approve operation
           });
           
           console.log('Approval transaction hash:', approveHash);
@@ -363,7 +363,7 @@ export function useMarketplace() {
           abi: TILE_MARKETPLACE_ABI,
           functionName: 'rentTile',
           args: [BigInt(tileId)],
-          gas: BigInt(300000), // Set reasonable gas limit to prevent excessive fees
+          gas: BigInt(250000), // Optimized gas limit for rent operation
         });
         
         console.log('Rent transaction hash:', hash);
@@ -403,7 +403,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'cancelSaleListing',
         args: [BigInt(tileId)],
-        gas: BigInt(200000), // Optimize gas for cancel operation
+        gas: BigInt(150000), // Reduced gas limit for cancel operation
       });
       
       console.log('Transaction hash:', hash);
@@ -446,7 +446,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'cancelRentalListing',
         args: [BigInt(tileId)],
-        gas: BigInt(200000), // Optimize gas for cancel operation
+        gas: BigInt(150000), // Reduced gas limit for cancel operation
       });
       
       console.log('Transaction hash:', hash);
@@ -484,7 +484,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'cleanupExpiredRental',
         args: [BigInt(tileId)],
-        gas: BigInt(150000), // Optimize gas for cleanup operation
+        gas: BigInt(100000), // Reduced gas limit for cleanup operation
       });
       
       console.log('Transaction hash:', hash);
