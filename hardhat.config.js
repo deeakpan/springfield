@@ -29,12 +29,12 @@ module.exports = {
   },
   etherscan: {
     apiKey: {
-      'pepe-unchained-mainnet': 'empty',
-       'pepe_unchained_v2_testnet': 'empty'
+      'pepe_unchained_v2': 'empty',
+      'pepe_unchained_v2_testnet': 'empty'
     },
     customChains: [
       {
-        network: "pepe-unchained-mainnet",
+        network: "pepe_unchained_v2",
         chainId: 97741,
         urls: {
           apiURL: "https://explorer-pepu-v2-mainnet-0.t.conduit.xyz/api",

@@ -43,10 +43,10 @@ async function main() {
 
     // ========== DEPLOY CONTRACT ==========
     console.log("⚙️  Getting contract factory...");
-    const WeeklyAuction = await ethers.getContractFactory("WeeklyAuction");
+    const SpringfieldAuctionV2 = await ethers.getContractFactory("WeeklyAuction");
 
-    console.log("🚀 Deploying WeeklyAuction contract...");
-    const auction = await WeeklyAuction.deploy(
+    console.log("🚀 Deploying SpringfieldAuctionV2 contract...");
+    const auction = await SpringfieldAuctionV2.deploy(
         CONFIG.BOT_ADDRESS,
         CONFIG.BID_RECIPIENT,
         CONFIG.BIDDING_TOKEN
@@ -55,7 +55,7 @@ async function main() {
     console.log("⏳ Waiting for deployment...");
     await auction.waitForDeployment();
 
-    console.log("\n✅ WEEKLY AUCTION CONTRACT DEPLOYED SUCCESSFULLY!");
+    console.log("\n✅ SPRINGFIELD AUCTION V2 CONTRACT DEPLOYED SUCCESSFULLY!");
     console.log("=========================================================");
     console.log(`📍 Contract Address: ${await auction.getAddress()}`);
     console.log(`🔗 Transaction Hash: ${auction.deploymentTransaction().hash}`);
@@ -97,13 +97,13 @@ async function main() {
     console.log(`   Send ETH to: ${CONFIG.BOT_ADDRESS}`);
     console.log("");
     console.log("2. 🤖 Update bot configuration:");
-    console.log(`   CONTRACT_ADDRESS=${auction.address}`);
+    console.log(`   CONTRACT_ADDRESS=${await auction.getAddress()}`);
     console.log("");
     console.log("3. 🔄 Start the bot:");
     console.log("   npm start");
     console.log("");
     console.log("4. 🎯 Bot will automatically:");
-    console.log("   - Start auctions every Friday 10:50 AM UTC");
+    console.log("   - Start auctions every Monday 12:00 PM UTC");
     console.log("   - End auctions after 24 hours + extensions");
     console.log("   - Forward winning bids to recipient");
     console.log("");
@@ -131,7 +131,7 @@ async function main() {
         console.log(`npx hardhat verify --network pepe_unchained_v2 ${await auction.getAddress()} "${CONFIG.BOT_ADDRESS}" "${CONFIG.BID_RECIPIENT}" "${CONFIG.BIDDING_TOKEN}"`);
     }
 
-    console.log("\n🎉 WeeklyAuction deployment completed successfully!");
+    console.log("\n🎉 SpringfieldAuctionV2 deployment completed successfully!");
 }
 
 // Execute deployment
