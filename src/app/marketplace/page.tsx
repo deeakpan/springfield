@@ -572,25 +572,28 @@ export default function MarketplacePage() {
         <div className="flex gap-2">
           <button
             onClick={() => setShowBulkEditModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/60 hover:bg-purple-600 border border-purple-400/50 text-purple-300 hover:text-purple-200 rounded-lg text-sm font-bold transition-all"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-purple-600/60 hover:bg-purple-600 border border-purple-400/50 text-purple-300 hover:text-purple-200 rounded-lg text-xs sm:text-sm font-bold transition-all"
           >
-            <Edit3 className="w-4 h-4" />
-            Bulk Edit
+            <Edit3 className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Bulk Edit</span>
+            <span className="sm:hidden">Edit</span>
           </button>
           <button
             onClick={() => setShowBulkListModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600/60 hover:bg-emerald-600 border border-emerald-400/50 text-emerald-300 hover:text-emerald-200 rounded-lg text-sm font-bold transition-all"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-emerald-600/60 hover:bg-emerald-600 border border-emerald-400/50 text-emerald-300 hover:text-emerald-200 rounded-lg text-xs sm:text-sm font-bold transition-all"
           >
-            <ShoppingCart className="w-4 h-4" />
-            Bulk List
+            <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Bulk List</span>
+            <span className="sm:hidden">List</span>
           </button>
           <button
             onClick={fetchUserTiles}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700/60 hover:bg-slate-700 border-2 border-emerald-400 text-emerald-400 hover:text-emerald-300 rounded-lg text-sm font-bold transition-all"
+            className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-700/60 hover:bg-slate-700 border-2 border-emerald-400 text-emerald-400 hover:text-emerald-300 rounded-lg text-xs sm:text-sm font-bold transition-all"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`w-3 h-3 sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+            <span className="sm:hidden">Refresh</span>
           </button>
         </div>
       </div>

@@ -379,132 +379,81 @@ export default function BulkEditModal({ open, onClose, tiles, selectedTiles, onE
         </button>
 
         {step === 'selection' && (
-          <div className="space-y-6">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-emerald-400 mb-2">Bulk Edit Tiles</h2>
-              <p className="text-slate-300 text-sm">Select tiles to edit in bulk. You can edit owned tiles and tiles you're currently renting.</p>
-            </div>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold text-yellow-300 text-center">Select Tiles to Edit</h2>
             
             {/* Selection Controls */}
-            <div className="flex items-center justify-between bg-slate-700/50 rounded-lg p-4 border border-slate-600/50">
-              <div className="text-slate-300 text-sm">
-                {localSelectedTiles.size} of {availableTiles.length} tiles selected
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={selectAllTiles}
-                  className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 hover:text-emerald-200 rounded-lg text-sm font-medium transition-all"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={deselectAllTiles}
-                  className="px-3 py-1.5 bg-slate-500/20 hover:bg-slate-500/30 border border-slate-400/50 text-slate-300 hover:text-slate-200 rounded-lg text-sm font-medium transition-all"
-                >
-                  Deselect All
-                </button>
-              </div>
+            <div className="flex gap-2">
+              <button
+                onClick={selectAllTiles}
+                className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm font-medium"
+              >
+                Select All ({availableTiles.length})
+              </button>
+              <button
+                onClick={deselectAllTiles}
+                className="flex-1 px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-colors text-sm font-medium"
+              >
+                Clear
+              </button>
             </div>
-            
-            {/* Tile Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
+
+            {/* Compact Tiles Grid with Images */}
+            <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
               {availableTiles.map((tile) => {
                 const isSelected = localSelectedTiles.has(Number(tile.tileId));
-                const isRented = tile.isCurrentlyRented;
-                const isRentedByUser = tile.isRentedByUser;
-                
                 return (
-                <div
-                  key={tile.tileId.toString()}
-                    className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-emerald-400 bg-emerald-500/10'
-                        : 'border-slate-600/50 bg-slate-700/50 hover:border-slate-500 hover:bg-slate-700/70'
-                    }`}
+                  <div
+                    key={tile.tileId.toString()}
                     onClick={() => handleTileSelection(Number(tile.tileId), !isSelected)}
+                    className={`
+                      relative cursor-pointer rounded-lg border-2 transition-all duration-200 p-2
+                      ${isSelected 
+                        ? 'border-emerald-400 bg-emerald-400/10' 
+                        : 'border-slate-600 hover:border-slate-500 bg-slate-700/50'
+                      }
+                    `}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                    <input
-                      type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            e.stopPropagation();
-                            handleTileSelection(Number(tile.tileId), e.target.checked);
-                          }}
-                          className="w-4 h-4 text-emerald-600 bg-slate-700 border-slate-500 rounded focus:ring-emerald-500 focus:ring-2"
-                        />
+                    {/* Selection Indicator */}
+                    <div className={`
+                      absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center
+                      ${isSelected ? 'bg-emerald-400' : 'bg-slate-600'}
+                    `}>
+                      {isSelected && <CheckCircle2 className="w-2.5 h-2.5 text-slate-900" />}
+                    </div>
+
+                    {/* Compact Tile Display with Image */}
+                    <div className="text-center">
+                      <div className="w-8 h-8 mx-auto mb-1 bg-slate-600 rounded flex items-center justify-center">
+                        {tile.imageCID ? (
+                          <img
+                            src={`https://gateway.lighthouse.storage/ipfs/${tile.imageCID}`}
+                            alt={tile.name || `Tile ${tile.tileId}`}
+                            className="w-full h-full object-cover rounded"
+                          />
+                        ) : (
+                          <span className="text-slate-400 text-sm">🏠</span>
+                        )}
                       </div>
-                      
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-600/60 rounded-lg">
-                            <Hash className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-white font-semibold text-sm">{tile.tileId.toString()}</span>
-                          </div>
-                          
-                          {isRented && (
-                            <div className={`px-2 py-1 rounded text-xs font-medium ${
-                              isRentedByUser 
-                                ? 'bg-blue-500/20 text-blue-300 border border-blue-400/30'
-                                : 'bg-orange-500/20 text-orange-300 border border-orange-400/30'
-                            }`}>
-                              {isRentedByUser ? 'Renting' : 'Rented'}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="font-semibold text-white text-sm mb-1 truncate">
+                      <div className="text-slate-200 text-xs font-medium truncate px-1" title={tile.name || `Tile ${tile.tileId}`}>
                         {tile.name || `Tile ${tile.tileId}`}
                       </div>
-                        
-                        {tile.description && (
-                          <div className="text-slate-400 text-xs line-clamp-2 leading-relaxed">
-                            {tile.description}
-                          </div>
-                        )}
-                        
-                        {/* Quick Actions */}
-                        <div className="flex gap-2 mt-3">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEdit(tile);
-                            }}
-                            className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-400/30 text-blue-300 hover:text-blue-200 rounded text-xs font-medium transition-all"
-                          >
-                            <Edit3 className="w-3 h-3 inline mr-1" />
-                            Edit
-                          </button>
-                        </div>
                     </div>
                   </div>
-                </div>
                 );
               })}
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex justify-between items-center pt-4 border-t border-slate-600/50">
-                <button
-                className="px-6 py-2.5 bg-slate-600 hover:bg-slate-500 text-slate-200 rounded-lg font-medium transition-colors border border-slate-500"
-                  onClick={onClose}
-                >
-                  Cancel
-                </button>
-                <button
-                className={`px-6 py-2.5 rounded-lg font-medium transition-all border-2 ${
-                  localSelectedTiles.size > 0
-                    ? 'bg-emerald-400 text-slate-900 border-slate-700 hover:bg-emerald-300'
-                    : 'bg-slate-500 text-slate-400 border-slate-600 cursor-not-allowed'
-                  }`}
-                  onClick={() => setStep('form')}
+            {/* Next Button */}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setStep('form')}
                 disabled={localSelectedTiles.size === 0}
-                >
-                <Edit3 className="inline w-4 h-4 mr-2" />
-                Edit {localSelectedTiles.size} Tile{localSelectedTiles.size !== 1 ? 's' : ''}
-                </button>
-              </div>
+                className="px-4 py-2.5 bg-emerald-400 hover:bg-emerald-300 disabled:bg-slate-500 text-slate-900 font-bold transition-all disabled:cursor-not-allowed rounded-lg border-2 border-slate-700"
+              >
+                Continue with {localSelectedTiles.size} tiles →
+              </button>
+            </div>
           </div>
         )}
 

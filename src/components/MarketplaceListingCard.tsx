@@ -68,17 +68,22 @@ export default function MarketplaceListingCard({
           
           // Get the actual rental listing to check current status
           const rentalListing = await marketplace.rentalListings(listing.tileId);
-          const hasActiveRenter = rentalListing.currentRenter && 
-            rentalListing.currentRenter !== '0x0000000000000000000000000000000000000000';
           
-          setIsCurrentlyRented(hasActiveRenter);
-          
-          // Check if rental has expired
+          // Check if rental has expired first
+          let isExpired = false;
           if (rentalListing.rentalEnd) {
             const currentTime = Math.floor(Date.now() / 1000);
             const rentalEndTime = Number(rentalListing.rentalEnd);
-            setIsExpired(rentalEndTime <= currentTime);
+            isExpired = rentalEndTime <= currentTime;
+            setIsExpired(isExpired);
           }
+          
+          // A rental is only "currently rented" if it has an active renter AND hasn't expired
+          const hasActiveRenter = rentalListing.currentRenter && 
+            rentalListing.currentRenter !== '0x0000000000000000000000000000000000000000';
+          
+          // Set currently rented to false if the rental has expired, regardless of renter status
+          setIsCurrentlyRented(hasActiveRenter && !isExpired);
         } catch (error) {
           console.error('Error checking rental status:', error);
           setIsCurrentlyRented(false);
