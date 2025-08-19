@@ -312,6 +312,10 @@ export default function MarketplacePage() {
               <Grid3X3 className="w-4 h-4" />
               <span className="text-sm font-medium">Grid</span>
             </a>
+            <a href="/league" className="flex items-center gap-2 px-3 py-1.5 text-slate-300 hover:text-emerald-400 transition-colors">
+              <span className="text-lg">🏆</span>
+              <span className="text-sm font-medium">League</span>
+            </a>
             <div className="flex items-center gap-2 px-3 py-1.5 text-emerald-400 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
               <ShoppingCart className="w-4 h-4" />
               <span className="text-sm font-bold">Marketplace</span>
@@ -338,6 +342,10 @@ export default function MarketplacePage() {
             <a href="/grid" className="flex items-center gap-2 px-4 py-2 text-slate-300 hover:text-emerald-400 transition-colors">
               <Grid3X3 className="w-4 h-4" />
               Grid
+            </a>
+            <a href="/league" className="flex items-center gap-2 px-4 py-2 text-slate-300 hover:text-emerald-400 transition-colors">
+              <span className="text-lg">🏆</span>
+              League
             </a>
           </div>
         )}

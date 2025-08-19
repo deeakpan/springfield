@@ -18,7 +18,8 @@ import {
   Grid3X3,
   MousePointer,
   Menu,
-  X
+  X,
+  Trophy
 } from "lucide-react";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
@@ -120,6 +121,10 @@ export default function Home() {
               <a href="#features" className="text-white hover:text-green-400 font-medium transition-colors">Features</a>
               <a href="/grid" className="text-white hover:text-green-400 font-medium transition-colors">Grid</a>
               <a href="/marketplace" className="text-white hover:text-green-400 font-medium transition-colors">Marketplace</a>
+              <a href="/league" className="text-white hover:text-green-400 font-medium transition-colors flex items-center gap-2">
+                <Trophy className="w-4 h-4" />
+                League
+              </a>
               <a href="/refund" className="text-white hover:text-green-400 font-medium transition-colors">Refunds</a>
             </motion.div>
 
@@ -212,6 +217,14 @@ export default function Home() {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Marketplace
+              </a>
+              <a 
+                href="/league" 
+                className="block px-3 py-2 text-white hover:text-green-400 font-medium transition-colors border-b border-blue-500 flex items-center gap-2"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Trophy className="w-4 h-4" />
+                League
               </a>
               <a 
                 href="/refund" 
