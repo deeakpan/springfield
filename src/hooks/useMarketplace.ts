@@ -133,7 +133,7 @@ export function useMarketplace() {
         abi: TILE_MARKETPLACE_ABI,
         functionName: 'listTileForSale',
         args: [BigInt(tileId), priceInWei, isNativePayment],
-        gas: BigInt(200000), // Reduced gas limit for sale listing
+        gas: BigInt(300000), // Moderate gas limit for sale listing
       });
       
       console.log('Transaction hash:', hash);
